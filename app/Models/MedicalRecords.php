@@ -4,8 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class MedicalRecord extends Model
+class MedicalRecords extends Model
 {
+     protected $table = 'medicalrecords';
     protected $primaryKey = 'RecordID';
     public $incrementing = false;
     protected $keyType = 'string';

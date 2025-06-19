@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Prescription;
+use App\Models\Prescriptions;
 
-class PrescriptionController extends Controller
+class PrescriptionsController extends Controller
 {
     function getList(Request $request)
     {
@@ -14,7 +14,7 @@ class PrescriptionController extends Controller
         $data['page'] = $data['page'] ?? 1;
 
         try {
-            $list = Prescription::where('Dosage', 'like', '%' . $data['search'] . '%')
+            $list = Prescriptions::where('Dosage', 'like', '%' . $data['search'] . '%')
                 ->orWhere('Frequency', 'like', '%' . $data['search'] . '%')
                 ->offset(($data['page'] - 1) * 10)
                 ->limit(10)
@@ -37,7 +37,7 @@ class PrescriptionController extends Controller
     function getDetail($id)
     {
         try {
-            $item = Prescription::findOrFail($id);
+            $item = Prescriptions::findOrFail($id);
             return response()->json([
                 'success' => true,
                 'message' => 'Lấy chi tiết đơn thuốc thành công!',
@@ -63,10 +63,10 @@ class PrescriptionController extends Controller
                 'Duration' => 'nullable|string|max:100',
             ]);
 
-            $count = Prescription::count();
+            $count = Prescriptions::count();
             $prescriptionId = 'PRE' . str_pad($count + 1, 4, '0', STR_PAD_LEFT);
 
-            $item = Prescription::create([
+            $item = Prescriptions::create([
                 'PrescriptionID' => $prescriptionId,
                 'RecordID' => $request->RecordID,
                 'MedicationID' => $request->MedicationID,
@@ -92,7 +92,7 @@ class PrescriptionController extends Controller
     function update(Request $request, $id)
     {
         try {
-            $item = Prescription::findOrFail($id);
+            $item = Prescriptions::findOrFail($id);
             $item->update($request->all());
 
             return response()->json([
@@ -112,7 +112,7 @@ class PrescriptionController extends Controller
     function delete($id)
     {
         try {
-            $item = Prescription::findOrFail($id);
+            $item = Prescriptions::findOrFail($id);
             $item->delete();
 
             return response()->json([

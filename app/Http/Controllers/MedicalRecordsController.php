@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\MedicalRecord;
+use App\Models\MedicalRecords;
 
-class MedicalRecordController extends Controller
+class MedicalRecordsController extends Controller
 {
     function getList(Request $request)
     {
@@ -14,7 +14,7 @@ class MedicalRecordController extends Controller
         $data['page'] = $data['page'] ?? 1;
 
         try {
-            $list = MedicalRecord::where(function ($query) use ($data) {
+            $list = MedicalRecords::where(function ($query) use ($data) {
                 $query->where("Diagnosis", "like", "%" . $data['search'] . "%")
                       ->orWhere("Treatment", "like", "%" . $data['search'] . "%");
             })
@@ -39,7 +39,7 @@ class MedicalRecordController extends Controller
     function getDetail($id)
     {
         try {
-            $record = MedicalRecord::findOrFail($id);
+            $record = MedicalRecords::findOrFail($id);
             return response()->json([
                 "success" => true,
                 "message" => "Lấy chi tiết hồ sơ y tế thành công!",
@@ -66,7 +66,7 @@ class MedicalRecordController extends Controller
             ]);
 
             $recordId = $request->PetID . '_' . $request->UserID . '_' . date('Ymd', strtotime($request->RecordDate));
-            $record = MedicalRecord::create(array_merge($request->all(), ['RecordID' => $recordId]));
+            $record = MedicalRecords::create(array_merge($request->all(), ['RecordID' => $recordId]));
 
             return response()->json([
                 "success" => true,
@@ -85,7 +85,7 @@ class MedicalRecordController extends Controller
     function update(Request $request, $id)
     {
         try {
-            $record = MedicalRecord::findOrFail($id);
+            $record = MedicalRecords::findOrFail($id);
             $record->update($request->all());
 
             return response()->json([
@@ -105,7 +105,7 @@ class MedicalRecordController extends Controller
     function delete($id)
     {
         try {
-            $record = MedicalRecord::findOrFail($id);
+            $record = MedicalRecords::findOrFail($id);
             $record->delete();
 
             return response()->json([

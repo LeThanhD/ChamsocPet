@@ -1,131 +1,171 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\UserController;
+use Illuminate\Http\Request;
+
+// Controllers
+use App\Http\Controllers\UsersController;
 use App\Http\Controllers\PetController;
 use App\Http\Controllers\AppointmentHistoryController;
 use App\Http\Controllers\AppointmentController;
-use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\InvoicesController;
 use App\Http\Controllers\InvoiceDetailController;
 use App\Http\Controllers\MedicalHistoryController;
-use App\Http\Controllers\MedicalRecordController;
+use App\Http\Controllers\MedicalRecordsController;
 use App\Http\Controllers\MedicationController;
-use App\Http\Controllers\PetNoteController;
-use App\Http\Controllers\PrescriptionController;
-use App\Http\Controllers\ServiceCategoryController;
+use App\Http\Controllers\PetNotesController;
+use App\Http\Controllers\PrescriptionsController;
+use App\Http\Controllers\ServiceCategoriesController;
 use App\Http\Controllers\ServiceController;
-use App\Http\Controllers\UserLogController;
+use App\Http\Controllers\UserLogsController;
+use App\Http\Controllers\PaymentMethodController;
+use App\Http\Controllers\PaymentController;
 
-// User Routes
-Route::prefix('users')->controller(UserController::class)->group(function () {
-    Route::post('/list', 'getList');
-    Route::post('/create', 'store');
-});
+// ✅ Public routes (không cần token)
 
-// Pet Routes
-Route::prefix('pets')->controller(PetController::class)->group(function () {
-    Route::post('/list', 'getList');
-    Route::post('/create', 'store');
-});
+Route::post('/login', [UsersController::class, 'login'])->name('login');
+Route::post('/users', [UsersController::class, 'store']);
 
-// Appointment History Routes
-Route::prefix('appointment-history')->controller(AppointmentHistoryController::class)->group(function () {
-    Route::post('/', 'store');
-    Route::put('/{id}', 'update');
-    Route::delete('/{id}', 'destroy');
-});
+// ✅ Protected routes (cần token Sanctum)
 
-// Appointment Routes
-Route::prefix('appointments')->controller(AppointmentController::class)->group(function () {
-    Route::get('/', 'index');
-    Route::post('/', 'store');
-    Route::put('/{id}', 'update');
-    Route::delete('/{id}', 'destroy');
-});
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/user-profile', function (Request $request) {
+        return response()->json([
+            'message' => 'Dữ liệu bảo vệ thành công',
+            'user' => $request->user()
+        ]);
+    });
 
-// Invoice Routes
-Route::prefix('invoices')->controller(InvoiceController::class)->group(function () {
-    Route::get('/', 'index');
-    Route::post('/', 'store');
-    Route::put('/{id}', 'update');
-    Route::delete('/{id}', 'destroy');
-});
+    Route::post('/logout', [UsersController::class, 'logout']);
 
-// Invoice Detail Routes
-Route::prefix('invoice-details')->controller(InvoiceDetailController::class)->group(function () {
-    Route::get('/', 'index');
-    Route::post('/', 'store');
-    Route::put('/{id}', 'update');
-    Route::delete('/{id}', 'destroy');
-});
+    // 🧑‍💼 User routes (sau khi đăng nhập)
+    Route::prefix('/users')->controller(UsersController::class)->group(function () {
+        Route::get('/{page?}/{search?}', 'getList');   
+        Route::put('/{id}', 'update');                
+        Route::delete('/{id}', 'destroy');          
+    });
 
-// Medical History Routes
-Route::prefix('medical-histories')->controller(MedicalHistoryController::class)->group(function () {
-    Route::get('/', 'index');
-    Route::post('/', 'store');
-    Route::put('/{id}', 'update');
-    Route::delete('/{id}', 'destroy');
-});
+    // 🐶 Pet routes
+    Route::prefix('/pets')->controller(PetController::class)->group(function () {
+        Route::get('/list', 'getList');
+        Route::post('/create', 'store');
+    });
 
-// Medical Record Routes
-Route::prefix('medical-records')->controller(MedicalRecordController::class)->group(function () {
-    Route::get('/', 'getList');
-    Route::get('/{id}', 'getDetail');
-    Route::post('/', 'create');
-    Route::put('/{id}', 'update');
-    Route::delete('/{id}', 'delete');
-});
+    // 📅 Appointment history routes
+    Route::prefix('/appointment-history')->controller(AppointmentHistoryController::class)->group(function () {
+        Route::post('/', 'store');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'destroy');
+    });
 
-// Medications Routes
-Route::prefix('medications')->controller(MedicationController::class)->group(function () {
-    Route::get('/', 'getList');
-    Route::get('/{id}', 'getDetail');
-    Route::post('/', 'create');
-    Route::put('/{id}', 'update');
-    Route::delete('/{id}', 'delete');
-});
+    // 🗓 Appointment routes
+    Route::prefix('/appointments')->controller(AppointmentController::class)->group(function () {
+        Route::get('/', 'index');
+        Route::post('/', 'store');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'destroy');
+    });
 
-//PetNodes Routes
-Route::prefix('pet-notes')->controller(PetNoteController::class)->group(function () {
-    Route::get('/', 'getList');
-    Route::get('/{id}', 'getDetail');
-    Route::post('/', 'create');
-    Route::put('/{id}', 'update');
-    Route::delete('/{id}', 'delete');
-});
+    // 🧾 Invoice routes
+    Route::prefix('/invoices')->controller(InvoicesController::class)->group(function () {
+        Route::get('/', 'index');
+        Route::post('/', 'store');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'destroy');
+    });
 
-//Prescriptions Routes
-Route::prefix('prescriptions')->controller(PrescriptionController::class)->group(function () {
-    Route::get('/', 'getList');
-    Route::get('/{id}', 'getDetail');
-    Route::post('/', 'create');
-    Route::put('/{id}', 'update');
-    Route::delete('/{id}', 'delete');
-});
+    // 🧾 Invoice detail routes
+    Route::prefix('/invoice-details')->controller(InvoiceDetailController::class)->group(function () {
+        Route::get('/', 'index');
+        Route::post('/', 'store');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'destroy');
+    });
 
-//ServiceCategory Routes
-Route::prefix('service-categories')->controller(ServiceCategoryController::class)->group(function () {
-    Route::get('/', 'getList');
-    Route::get('/{id}', 'getDetail');
-    Route::post('/', 'create');
-    Route::put('/{id}', 'update');
-    Route::delete('/{id}', 'delete');
-});
+    // 📖 Medical history
+    Route::prefix('/medical-histories')->controller(MedicalHistoryController::class)->group(function () {
+        Route::get('/', 'index');
+        Route::post('/', 'store');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'destroy');
+    });
 
-//Service Routes
-Route::prefix('services')->controller(ServiceController::class)->group(function () {
-    Route::get('/', 'getList');
-    Route::get('/{id}', 'getDetail');
-    Route::post('/', 'create');
-    Route::put('/{id}', 'update');
-    Route::delete('/{id}', 'delete');
-});
+    // 📋 Medical records
+    Route::prefix('/medical-records')->controller(MedicalRecordsController::class)->group(function () {
+        Route::get('/', 'getList');
+        Route::get('/{id}', 'getDetail');
+        Route::post('/', 'create');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'delete');
+    });
 
-//UsersLog Routes
-Route::prefix('user-logs')->controller(UserLogController::class)->group(function () {
-    Route::get('/', 'getList');
-    Route::get('/{id}', 'getDetail');
-    Route::post('/', 'create');
-    Route::put('/{id}', 'update');
-    Route::delete('/{id}', 'delete');
+    // 💊 Medications
+    Route::prefix('/medications')->controller(MedicationController::class)->group(function () {
+        Route::get('/', 'getList');
+        Route::get('/{id}', 'getDetail');
+        Route::post('/', 'create');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'delete');
+    });
+
+    // 📒 Pet notes
+    Route::prefix('/pet-notes')->controller(PetNotesController::class)->group(function () {
+        Route::get('/', 'getList');
+        Route::get('/{id}', 'getDetail');
+        Route::post('/', 'create');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'delete');
+    });
+
+    // 💊 Prescriptions
+    Route::prefix('/prescriptions')->controller(PrescriptionsController::class)->group(function () {
+        Route::get('/', 'getList');
+        Route::get('/{id}', 'getDetail');
+        Route::post('/', 'create');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'delete');
+    });
+
+    // 🧾 Service Categories
+    Route::prefix('/service-categories')->controller(ServiceCategoriesController::class)->group(function () {
+        Route::get('/', 'getList');
+        Route::get('/{id}', 'getDetail');
+        Route::post('/', 'create');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'delete');
+    });
+
+    // 💼 Services
+    Route::prefix('/services')->controller(ServiceController::class)->group(function () {
+        Route::get('/', 'getList');
+        Route::get('/{id}', 'getDetail');
+        Route::post('/', 'create');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'delete');
+    });
+
+    // 📓 User Logs
+    Route::prefix('/user-logs')->controller(UserLogsController::class)->group(function () {
+        Route::get('/', 'getList');
+        Route::get('/{id}', 'getDetail');
+        Route::post('/', 'create');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'delete');
+    });
+
+    // 💳 Payment Methods
+    Route::prefix('/payment-methods')->controller(PaymentMethodController::class)->group(function () {
+        Route::get('/', 'index');
+        Route::post('/', 'store');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'destroy');
+    });
+
+    // 💰 Payments
+    Route::prefix('/payments')->controller(PaymentController::class)->group(function () {
+        Route::get('/', 'index');
+        Route::post('/', 'store');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'destroy');
+    });
 });

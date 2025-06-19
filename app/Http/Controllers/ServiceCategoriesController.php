@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\ServiceCategory;
+use App\Models\ServiceCategories;
 
-class ServiceCategoryController extends Controller
+class ServiceCategoriesController extends Controller
 {
     function getList(Request $request)
     {
@@ -14,7 +14,7 @@ class ServiceCategoryController extends Controller
         $data['page'] = $data['page'] ?? 1;
 
         try {
-            $list = ServiceCategory::where('CategoryName', 'like', '%' . $data['search'] . '%')
+            $list = ServiceCategories::where('CategoryName', 'like', '%' . $data['search'] . '%')
                 ->offset(($data['page'] - 1) * 10)
                 ->limit(10)
                 ->get();
@@ -36,7 +36,7 @@ class ServiceCategoryController extends Controller
     function getDetail($id)
     {
         try {
-            $item = ServiceCategory::findOrFail($id);
+            $item = ServiceCategories::findOrFail($id);
             return response()->json([
                 'success' => true,
                 'message' => 'Lấy chi tiết loại dịch vụ thành công!',
@@ -58,10 +58,10 @@ class ServiceCategoryController extends Controller
                 'CategoryName' => 'required|string|max:100',
             ]);
 
-            $count = ServiceCategory::count();
+            $count = ServiceCategories::count();
             $categoryId = 'CAT' . str_pad($count + 1, 4, '0', STR_PAD_LEFT);
 
-            $category = ServiceCategory::create([
+            $category = ServiceCategories::create([
                 'CategoryID' => $categoryId,
                 'CategoryName' => $request->CategoryName
             ]);
@@ -83,7 +83,7 @@ class ServiceCategoryController extends Controller
     function update(Request $request, $id)
     {
         try {
-            $category = ServiceCategory::findOrFail($id);
+            $category = ServiceCategories::findOrFail($id);
             $category->update($request->all());
 
             return response()->json([
@@ -103,7 +103,7 @@ class ServiceCategoryController extends Controller
     function delete($id)
     {
         try {
-            $category = ServiceCategory::findOrFail($id);
+            $category = ServiceCategories::findOrFail($id);
             $category->delete();
 
             return response()->json([

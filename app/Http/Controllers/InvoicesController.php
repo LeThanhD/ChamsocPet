@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Invoice;
+use App\Models\Invoices;
 use Illuminate\Support\Facades\Validator;
 
-class InvoiceController extends Controller
+class InvoicesController extends Controller
 {
     // 1. Tạo hóa đơn
     public function store(Request $request)
@@ -20,7 +20,7 @@ class InvoiceController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $invoice = Invoice::create([
+        $invoice = Invoices::create([
             'PetID' => $request->PetID,
             'TotalAmount' => $request->TotalAmount,
         ]);
@@ -32,18 +32,18 @@ class InvoiceController extends Controller
     public function index(Request $request)
     {
         if ($request->has('id')) {
-            $invoice = Invoice::find($request->id);
+            $invoice = Invoices::find($request->id);
             if (!$invoice) return response()->json(['message' => 'Not found'], 404);
             return response()->json($invoice);
         }
 
-        return response()->json(Invoice::all());
+        return response()->json(Invoices::all());
     }
 
     // 3. Cập nhật hóa đơn
     public function update(Request $request, $id)
     {
-        $invoice = Invoice::find($id);
+        $invoice = Invoices::find($id);
         if (!$invoice) return response()->json(['message' => 'Not found'], 404);
 
         $validator = Validator::make($request->all(), [
@@ -61,7 +61,7 @@ class InvoiceController extends Controller
     // 4. Xóa hóa đơn
     public function destroy($id)
     {
-        $invoice = Invoice::find($id);
+        $invoice = Invoices::find($id);
         if (!$invoice) return response()->json(['message' => 'Not found'], 404);
 
         $invoice->delete();

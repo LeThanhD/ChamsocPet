@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class PetNote extends Model
+class PetNotes extends Model
 {
     protected $table = 'petnotes';
     protected $primaryKey = 'NoteID';

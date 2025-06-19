@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\PetNote;
+use App\Models\PetNotes;
 
-class PetNoteController extends Controller
+class PetNotesController extends Controller
 {
     function getList(Request $request)
     {
@@ -14,7 +14,7 @@ class PetNoteController extends Controller
         $data['page'] = $data['page'] ?? 1;
 
         try {
-            $list = PetNote::where('Content', 'like', '%' . $data['search'] . '%')
+            $list = PetNotes::where('Content', 'like', '%' . $data['search'] . '%')
                 ->offset(($data['page'] - 1) * 10)
                 ->limit(10)
                 ->get();
@@ -36,7 +36,7 @@ class PetNoteController extends Controller
     function getDetail($id)
     {
         try {
-            $note = PetNote::findOrFail($id);
+            $note = PetNotes::findOrFail($id);
             return response()->json([
                 'success' => true,
                 'message' => 'Lấy chi tiết ghi chú thành công!',
@@ -61,10 +61,10 @@ class PetNoteController extends Controller
                 'ServiceID' => 'nullable|exists:services,ServiceID',
             ]);
 
-            $count = PetNote::count();
+            $count = PetNotes::count();
             $noteId = 'PNOTE' . str_pad($count + 1, 4, '0', STR_PAD_LEFT);
 
-            $note = PetNote::create([
+            $note = PetNotes::create([
                 'NoteID' => $noteId,
                 'PetID' => $request->PetID,
                 'CreatedBy' => $request->CreatedBy,
@@ -90,7 +90,7 @@ class PetNoteController extends Controller
     function update(Request $request, $id)
     {
         try {
-            $note = PetNote::findOrFail($id);
+            $note = PetNotes::findOrFail($id);
             $note->update($request->all());
 
             return response()->json([
@@ -110,7 +110,7 @@ class PetNoteController extends Controller
     function delete($id)
     {
         try {
-            $note = PetNote::findOrFail($id);
+            $note = PetNotes::findOrFail($id);
             $note->delete();
 
             return response()->json([

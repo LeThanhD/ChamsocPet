@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\UserLog;
+use App\Models\UserLogs;
 
-class UserLogController extends Controller
+class UserLogsController extends Controller
 {
     public function getList(Request $request)
     {
@@ -14,7 +14,7 @@ class UserLogController extends Controller
         $data['page'] = $data['page'] ?? 1;
 
         try {
-            $logs = UserLog::where('ActionType', 'like', '%' . $data['search'] . '%')
+            $logs = UserLogs::where('ActionType', 'like', '%' . $data['search'] . '%')
                 ->orderBy('ActionTime', 'desc')
                 ->offset(($data['page'] - 1) * 10)
                 ->limit(10)
@@ -37,7 +37,7 @@ class UserLogController extends Controller
     public function getDetail($id)
     {
         try {
-            $log = UserLog::findOrFail($id);
+            $log = UserLogs::findOrFail($id);
             return response()->json([
                 'success' => true,
                 'message' => 'Lấy chi tiết nhật ký thành công!',
@@ -62,10 +62,10 @@ class UserLogController extends Controller
                 'ActionTime' => 'nullable|date'
             ]);
 
-            $count = UserLog::count();
+            $count = UserLogs::count();
             $logId = 'USRLOG' . str_pad($count + 1, 4, '0', STR_PAD_LEFT);
 
-            $log = UserLog::create([
+            $log = UserLogs::create([
                 'LogID' => $logId,
                 'UserID' => $request->UserID,
                 'ActionType' => $request->ActionType,
@@ -90,7 +90,7 @@ class UserLogController extends Controller
     public function update(Request $request, $id)
     {
         try {
-            $log = UserLog::findOrFail($id);
+            $log = UserLogs::findOrFail($id);
 
             $request->validate([
                 'UserID' => 'sometimes|string|exists:users,UserID',
@@ -118,7 +118,7 @@ class UserLogController extends Controller
     public function delete($id)
     {
         try {
-            $log = UserLog::findOrFail($id);
+            $log = UserLogs::findOrFail($id);
             $log->delete();
 
             return response()->json([

@@ -4,9 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class UserLog extends Model
+class UserLogs extends Model
 {
-    protected $table = 'user_logs';
+    protected $table = 'userlogs';
     protected $primaryKey = 'LogID';
     public $incrementing = false;
     protected $keyType = 'string';

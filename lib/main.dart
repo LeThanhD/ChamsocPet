@@ -22,6 +22,7 @@ import 'package:chamsocpet/Profile/ProfilePage.dart';
 import 'package:chamsocpet/Setting/SwitchAccountScreen.dart';
 import 'package:flutter/material.dart';
 import 'DangKy/Dangky.dart';
+import 'DangKy/InfoUser.dart';
 import 'QuenMk/quenMatKhau.dart';
 import 'login/DangNhap.dart';
 import 'login/TrangChinh.dart';
@@ -36,7 +37,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: PageScreen(),
+      home: RegisterFullScreen(),
     );
   }
 }

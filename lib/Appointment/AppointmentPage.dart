@@ -106,32 +106,6 @@ class _AppointmentPageState extends State<AppointmentPage> {
         backgroundColor: Colors.grey[300],
         child: const Icon(Icons.add, color: Colors.black),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: const Color(0xFFF3E1F9),
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.black,
-        currentIndex: currentIndex,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Trang chủ',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
-            label: 'Lịch hẹn',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory),
-            label: 'Quản lý',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Cá nhân',
-          ),
-        ],
-      ),
     );
   }
 

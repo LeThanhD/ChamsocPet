@@ -158,7 +158,7 @@ class LoginScreen extends StatelessWidget {
           } else if (label == 'Đăng ký') {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => RegisterScreen()),
+              MaterialPageRoute(builder: (_) => RegisterFullScreen()),
             );
           }
         },

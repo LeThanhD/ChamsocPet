@@ -1,7 +1,27 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
-void main() {
-  runApp(const MaterialApp(home: ServicePackageScreen()));
+class ServiceItem {
+  final String title;
+  final int price;
+  final String category;
+
+  ServiceItem({
+    required this.title,
+    required this.price,
+    required this.category,
+  });
+
+  factory ServiceItem.fromJson(Map<String, dynamic> json) {
+    return ServiceItem(
+      title: json['ServiceName'],
+      price: (json['Price'] is int)
+          ? json['Price']
+          : double.parse(json['Price'].toString()).toInt(),
+      category: json['CategoryID'],
+    );
+  }
 }
 
 class ServicePackageScreen extends StatefulWidget {
@@ -13,32 +33,29 @@ class ServicePackageScreen extends StatefulWidget {
 
 class _ServicePackageScreenState extends State<ServicePackageScreen> {
   int totalPrice = 0;
+  late Future<List<ServiceItem>> allServices;
 
-  final List<Map<String, dynamic>> dogServices = [
-    {"title": "Gói cắt tỉa lông, móng, tắm sấy", "price": 150000},
-    {"title": "Combo cắt tỉa, tắm, khám sức khỏe", "price": 200000},
-    {"title": "Tạo kiểu lông, spa, tiêm vaccine", "price": 250000},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    allServices = fetchAllServices();
+  }
 
-  final List<Map<String, dynamic>> catServices = [
-    {"title": "Cắt tỉa lông, nhuộm lông thời trang", "price": 200000},
-    {"title": "Combo cắt tỉa, spa, tiêm vaccine", "price": 250000},
-  ];
+  Future<List<ServiceItem>> fetchAllServices() async {
+    final response = await http.get(Uri.parse('http://192.168.0.108:8000/api/services'));
 
-  final List<Map<String, dynamic>> supplements = [
-    {"title": "Vitamin tổng hợp cho chó mèo", "price": 300000},
-    {"title": "Thuốc tẩy giun dạng nước, xổ giun cho chó mèo", "price": 200000},
-    {"title": "Thuốc tiêu hóa tiêu chảy dành cho chó mèo", "price": 150000},
-  ];
+    if (response.statusCode == 200) {
+      final decoded = json.decode(response.body);
 
-  final List<Map<String, dynamic>> tools = [
-    {"title": "Spa, Tắm Sấy, Triệt sản", "price": 100000},
-    {"title": "Tẩy giun dạng viên, xổ giun cho chó mèo", "price": 20000},
-    {"title": "Sữa tắm trị ve, rận cho chó mèo", "price": 350000},
-    {"title": "Tuýp kem bôi viêm da, nấm da", "price": 40000},
-    {"title": "Men tiêu hóa", "price": 10000},
-    {"title": "Chai xịt diệt bọ chét 300ml", "price": 50000},
-  ];
+      // Nếu Laravel trả về kiểu { "data": [...] }
+      final List<dynamic> data = decoded is List ? decoded : decoded['data'];
+
+      return data.map((e) => ServiceItem.fromJson(e)).toList();
+    } else {
+      throw Exception('Không thể tải dịch vụ từ API');
+    }
+  }
+
 
   void addToCart(int price) {
     setState(() {
@@ -50,7 +67,7 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Các gói dịch vụ & đơn thuốc", style: TextStyle(color: Colors.black)),
+        title: const Text("Các gói dịch vụ", style: TextStyle(color: Colors.black)),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -68,23 +85,32 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView(
-              children: [
-                _buildCategoryTitle("🐶 Dịch vụ dành cho chó:"),
-                ...dogServices.map(_buildServiceItem).toList(),
+            child: FutureBuilder<List<ServiceItem>>(
+              future: allServices,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  return Center(child: Text('Lỗi: ${snapshot.error}'));
+                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text('Không có dữ liệu'));
+                }
 
-                const Divider(thickness: 8, color: Colors.grey),
-                _buildCategoryTitle("🐱 Dịch vụ dành cho mèo:"),
-                ...catServices.map(_buildServiceItem).toList(),
+                final services = snapshot.data!;
+                final dogServices = services.where((s) => s.category == 'DOG').toList();
+                final catServices = services.where((s) => s.category == 'CAT').toList();
 
-                const Divider(thickness: 8, color: Colors.grey),
-                _buildCategoryTitle("💊 Thuốc & thực phẩm bổ sung:"),
-                ...supplements.map(_buildServiceItem).toList(),
+                return ListView(
+                  children: [
+                    _buildCategoryTitle("🐶 Dịch vụ dành cho chó"),
+                    ...dogServices.map(_buildItem),
 
-                const Divider(thickness: 8, color: Colors.grey),
-                _buildCategoryTitle("🧴 Thuốc và dụng cụ chăm sóc chó mèo:"),
-                ...tools.map(_buildServiceItem).toList(),
-              ],
+                    const Divider(thickness: 8),
+                    _buildCategoryTitle("🐱 Dịch vụ dành cho mèo"),
+                    ...catServices.map(_buildItem),
+                  ],
+                );
+              },
             ),
           ),
 
@@ -99,10 +125,7 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
                 Expanded(
                   child: Text(
                     "Tổng thanh toán\n${_formatCurrency(totalPrice)} VND",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
                   ),
                 ),
                 ElevatedButton(
@@ -111,13 +134,13 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                   ),
                   onPressed: () {
-                    // Chuyển sang màn hình giỏ hàng
+                    // Chuyển sang giỏ hàng
                   },
                   child: const Text("Xem giỏ hàng"),
-                )
+                ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );
@@ -133,35 +156,26 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
     );
   }
 
-  Widget _buildServiceItem(Map<String, dynamic> item) {
+  Widget _buildItem(ServiceItem item) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          Container(
-            width: 60,
-            height: 60,
-            color: Colors.grey[300], // Placeholder image
-          ),
-          const SizedBox(width: 12),
+          // Container(width: 60, height: 60, color: Colors.grey[300]),
+          // const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item["title"], style: const TextStyle(fontWeight: FontWeight.w500)),
+                Text(item.title, style: const TextStyle(fontWeight: FontWeight.w500)),
                 const SizedBox(height: 4),
-                Text(
-                  "${_formatCurrency(item["price"])}đ",
-                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                ),
-                const Text("Xem chi tiết", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                Text("${_formatCurrency(item.price)}đ",
+                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
           IconButton(
-            onPressed: () {
-              addToCart(item["price"]);
-            },
+            onPressed: () => addToCart(item.price),
             icon: const Icon(Icons.add_circle_outline, color: Colors.deepOrange),
           ),
         ],
@@ -170,7 +184,6 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
   }
 
   String _formatCurrency(int value) {
-    return value.toString().replaceAllMapped(
-        RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.');
+    return value.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.');
   }
 }

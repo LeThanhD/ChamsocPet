@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-
 import '../Page/PageScreen.dart';
+import '../Quản Lý/ManageScreen.dart';
 
 class AppointmentScreen extends StatefulWidget {
   @override
@@ -9,11 +9,11 @@ class AppointmentScreen extends StatefulWidget {
 
 class _AppointmentScreenState extends State<AppointmentScreen> {
   final TextEditingController customerNameController = TextEditingController();
-  final TextEditingController phoneController = TextEditingController();
   final TextEditingController noteController = TextEditingController();
 
-  String? selectedGender;
   String? selectedTime;
+  String? selectedService;
+  String? selectedPetName;
 
   @override
   Widget build(BuildContext context) {
@@ -46,28 +46,17 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
-                // Duy trì chiều rộng icon để giữ tiêu đề thật sự giữa
                 const SizedBox(width: 48),
               ],
             ),
 
-
             const SizedBox(height: 24),
 
-            // Người phụ trách
-            _buildDropdownField('Người phụ trách'),
+            // Chọn thú cưng
+            _buildPetField(context),
 
             // Tên khách hàng
             _buildTextField('Tên khách hàng', customerNameController),
-
-            // Giới tính & Số điện thoại
-            Row(
-              children: [
-                Expanded(child: _buildGenderDropdown()),
-                const SizedBox(width: 8),
-                Expanded(child: _buildTextField('Số điện thoại', phoneController)),
-              ],
-            ),
 
             // Ngày hẹn & Giờ hẹn
             Row(
@@ -100,13 +89,12 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
                 onPressed: () {
                   // TODO: handle submission
                 },
-                child: const Text('Đặt hẹn', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),),
+                child: const Text('Đặt hẹn', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ),
             ),
 
             const SizedBox(height: 32),
 
-            // Giờ làm việc
             const Center(
               child: Text(
                 'GIỜ LÀM VIỆC',
@@ -136,48 +124,6 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
           filled: true,
           fillColor: Colors.white,
         ),
-      ),
-    );
-  }
-
-  Widget _buildDropdownField(String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: DropdownButtonFormField<String>(
-        items: [],
-        onChanged: (val) {},
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGenderDropdown() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: DropdownButtonFormField<String>(
-        value: selectedGender,
-        decoration: const InputDecoration(
-          labelText: 'Giới tính',
-          border: OutlineInputBorder(),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-        items: ['Đực', 'Cái']
-            .map((gender) => DropdownMenuItem<String>(
-          value: gender,
-          child: Text(gender),
-        ))
-            .toList(),
-        onChanged: (value) {
-          setState(() {
-            selectedGender = value;
-          });
-        },
       ),
     );
   }
@@ -232,8 +178,6 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
     );
   }
 
-  String? selectedService;
-
   Widget _buildServiceDropdown() {
     final services = [
       'Cấp cứu 24/7',
@@ -268,4 +212,31 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
     );
   }
 
+  Widget _buildPetField(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: TextFormField(
+        readOnly: true,
+        controller: TextEditingController(text: selectedPetName ?? ''),
+        decoration: const InputDecoration(
+          labelText: 'Thú cưng',
+          border: OutlineInputBorder(),
+          filled: true,
+          fillColor: Colors.white,
+          suffixIcon: Icon(Icons.pets),
+        ),
+        onTap: () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => ManageScreen()),
+          );
+          if (result != null && result is String) {
+            setState(() {
+              selectedPetName = result;
+            });
+          }
+        },
+      ),
+    );
+  }
 }

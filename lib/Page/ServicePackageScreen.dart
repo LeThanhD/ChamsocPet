@@ -1,13 +1,16 @@
-import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+// ================= Model =================
 class ServiceItem {
+  final String id;
   final String title;
   final int price;
   final String category;
 
   ServiceItem({
+    required this.id,
     required this.title,
     required this.price,
     required this.category,
@@ -15,15 +18,17 @@ class ServiceItem {
 
   factory ServiceItem.fromJson(Map<String, dynamic> json) {
     return ServiceItem(
-      title: json['ServiceName'],
+      id: json['ServiceID'].toString(),
+      title: json['ServiceName'] ?? 'Chưa có tên',
       price: (json['Price'] is int)
           ? json['Price']
-          : double.parse(json['Price'].toString()).toInt(),
-      category: json['CategoryID'],
+          : double.tryParse(json['Price'].toString())?.toInt() ?? 0,
+      category: json['CategoryID'] ?? 'Unknown',
     );
   }
 }
 
+// ================= UI =================
 class ServicePackageScreen extends StatefulWidget {
   const ServicePackageScreen({super.key});
 
@@ -32,7 +37,6 @@ class ServicePackageScreen extends StatefulWidget {
 }
 
 class _ServicePackageScreenState extends State<ServicePackageScreen> {
-  int totalPrice = 0;
   late Future<List<ServiceItem>> allServices;
 
   @override
@@ -42,26 +46,34 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
   }
 
   Future<List<ServiceItem>> fetchAllServices() async {
-    final response = await http.get(Uri.parse('http://192.168.0.108:8000/api/services'));
+    final response = await http.get(
+      Uri.parse('http://192.168.0.108:8000/api/services'),
+      headers: {
+        'Accept': 'application/json',
+      },
+    );
+
+    print("Status: ${response.statusCode}");
+    print("Body: ${response.body}");
 
     if (response.statusCode == 200) {
       final decoded = json.decode(response.body);
 
-      // Nếu Laravel trả về kiểu { "data": [...] }
-      final List<dynamic> data = decoded is List ? decoded : decoded['data'];
-
-      return data.map((e) => ServiceItem.fromJson(e)).toList();
+      // Truy cập đúng vào danh sách dịch vụ nằm ở: decoded['data']['data']
+      if (decoded is Map &&
+          decoded.containsKey('data') &&
+          decoded['data'] is Map &&
+          decoded['data'].containsKey('data')) {
+        final List<dynamic> dataList = decoded['data']['data'];
+        return dataList.map((e) => ServiceItem.fromJson(e)).toList();
+      } else {
+        throw Exception("Phản hồi API không có key 'data.data'");
+      }
     } else {
       throw Exception('Không thể tải dịch vụ từ API');
     }
   }
 
-
-  void addToCart(int price) {
-    setState(() {
-      totalPrice += price;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,54 +103,33 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 } else if (snapshot.hasError) {
-                  return Center(child: Text('Lỗi: ${snapshot.error}'));
+                  return Center(child: Text('Lỗi tải dịch vụ: ${snapshot.error}'));
                 } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return const Center(child: Text('Không có dữ liệu'));
                 }
 
                 final services = snapshot.data!;
-                final dogServices = services.where((s) => s.category == 'DOG').toList();
-                final catServices = services.where((s) => s.category == 'CAT').toList();
+                final dogServices = services
+                    .where((s) => s.category.toUpperCase() == 'DOG')
+                    .toList();
+                final catServices = services
+                    .where((s) => s.category.toUpperCase() == 'CAT')
+                    .toList();
 
                 return ListView(
                   children: [
-                    _buildCategoryTitle("🐶 Dịch vụ dành cho chó"),
-                    ...dogServices.map(_buildItem),
-
-                    const Divider(thickness: 8),
-                    _buildCategoryTitle("🐱 Dịch vụ dành cho mèo"),
-                    ...catServices.map(_buildItem),
+                    if (dogServices.isNotEmpty) ...[
+                      _buildCategoryTitle("🐶 Dịch vụ dành cho chó"),
+                      ...dogServices.map(_buildItem),
+                    ],
+                    if (catServices.isNotEmpty) ...[
+                      const Divider(thickness: 8),
+                      _buildCategoryTitle("🐱 Dịch vụ dành cho mèo"),
+                      ...catServices.map(_buildItem),
+                    ],
                   ],
                 );
               },
-            ),
-          ),
-
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: Colors.grey)),
-              color: Colors.white,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    "Tổng thanh toán\n${_formatCurrency(totalPrice)} VND",
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
-                  ),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                  ),
-                  onPressed: () {
-                    // Chuyển sang giỏ hàng
-                  },
-                  child: const Text("Xem giỏ hàng"),
-                ),
-              ],
             ),
           ),
         ],
@@ -161,22 +152,19 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          // Container(width: 60, height: 60, color: Colors.grey[300]),
-          // const SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.title, style: const TextStyle(fontWeight: FontWeight.w500)),
+                Text(item.title,
+                    style: const TextStyle(fontWeight: FontWeight.w500)),
                 const SizedBox(height: 4),
                 Text("${_formatCurrency(item.price)}đ",
-                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    style: const TextStyle(
+                        color: Colors.red, fontWeight: FontWeight.bold)),
               ],
             ),
-          ),
-          IconButton(
-            onPressed: () => addToCart(item.price),
-            icon: const Icon(Icons.add_circle_outline, color: Colors.deepOrange),
           ),
         ],
       ),
@@ -184,6 +172,7 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
   }
 
   String _formatCurrency(int value) {
-    return value.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.');
+    return value.toString().replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.');
   }
 }

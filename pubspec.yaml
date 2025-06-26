@@ -67,6 +67,8 @@ flutter:
   assets:
      - assets/anhAvatar.png
      - assets/data/vietnam_provinces_data.json
+     - assets/pet.gif
+     - assets/3dDoge.gif
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

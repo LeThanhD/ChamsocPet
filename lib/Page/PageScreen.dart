@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:chamsocpet/Profile/ProfilePage.dart';
 import 'package:chamsocpet/Quản Lý/ManageScreen.dart';
 import '../Appointment/AppointmentPage.dart';
+import '../Hieuung/AnimalEffect.dart';
 import '../Notification/NotificationScreen.dart';
-import '../Appointment/AppointmentScreen.dart';
 import '../Page/ServicePackageScreen.dart';
-import '../Quản Lý/PetScreen.dart';
-import 'ContactScreen.dart';
+import '../Profile/PaymentScreen.dart';
+import '../madicene/MedicinePage.dart';
 
 class PageScreen extends StatefulWidget {
   const PageScreen({super.key});
@@ -19,10 +19,10 @@ class _PageScreenState extends State<PageScreen> {
   int currentIndex = 0;
 
   final List<Widget> pages = [
-    const HomeContent(),      // Trang chủ
-    AppointmentPage(),        // Lịch hẹn
-    ManageScreen(),           // Quản lý
-    ProfilePage(),            // Cá nhân
+    const HomeContent(),
+    AppointmentPage(appointmentData: {}),
+    const ManageScreen(),
+    const ProfilePage(),
   ];
 
   void _onItemTapped(int index) {
@@ -31,37 +31,28 @@ class _PageScreenState extends State<PageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: IndexedStack(
-        index: currentIndex,
-        children: pages,
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: const Color(0xFFF3E1F9),
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.black,
-        currentIndex: currentIndex,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Trang chủ',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
-            label: 'Lịch hẹn',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory),
-            label: 'Quản lý',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Cá nhân',
-          ),
-        ],
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent, // 👈 Nhận cả vùng trống
+      onTapDown: (details) {
+        AnimalEffect.show(context, details.globalPosition);
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: IndexedStack(index: currentIndex, children: pages),
+        bottomNavigationBar: BottomNavigationBar(
+          backgroundColor: const Color(0xFFF3E1F9),
+          selectedItemColor: Colors.blue,
+          unselectedItemColor: Colors.black,
+          currentIndex: currentIndex,
+          onTap: _onItemTapped,
+          type: BottomNavigationBarType.fixed,
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
+            BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Lịch hẹn'),
+            BottomNavigationBarItem(icon: Icon(Icons.inventory), label: 'Quản lý'),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Cá nhân'),
+          ],
+        ),
       ),
     );
   }
@@ -72,144 +63,78 @@ class HomeContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Search Bar
-            Container(
-              color: const Color(0xFF9DDCF6),
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Tìm kiếm dịch vụ...',
-                        prefixIcon: const Icon(Icons.search),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFFEBDDF4), Color(0xFF9FEFF8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                height: 300,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  image: const DecorationImage(
+                    image: AssetImage('assets/anhAvatar.png'), // ảnh đại diện
+                    fit: BoxFit.cover,
                   ),
-                  const SizedBox(width: 10),
-                  IconButton(
-                    icon: const Icon(Icons.notifications_none, size: 28),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => NotificationScreen()),
-                      );
-                    },
-                  )
-                ],
+                ),
               ),
-            ),
-
-            // Banner
-            Container(
-              margin: const EdgeInsets.all(12),
-              height: 200,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: 1,
+                  children: [
+                    _iconSquare(context, Icons.medication, 'Thuốc', Colors.lightBlue, MedicinePage()),
+                    _iconSquare(context, Icons.miscellaneous_services, 'Dịch vụ', Colors.pinkAccent, const ServicePackageScreen()),
+                    _iconSquare(context, Icons.notifications, 'Thông báo', Colors.amber, const NotificationScreen()),
+                    _iconSquare(context, Icons.payment, 'Thanh toán', Colors.green, const PaymentScreen()),
+                  ],
+                ),
               ),
-            ),
-
-            // Icon Buttons
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _iconShortcut(context, Icons.catching_pokemon, 'Thú cưng', Color(0xFFB3E7F9), const PetScreen()),
-                  _iconShortcut(context, Icons.pets, 'Gói dịch vụ', Color(0xFFF9AFC3), const ServicePackageScreen()),
-                  _iconShortcut(context, Icons.call, 'Liên hệ', Color(0xFFF9ED6E), const ContactScreen()),
-                  _iconShortcut(context, Icons.update, 'Lịch hẹn', Color(0xFFFBB17C), AppointmentScreen()),
-                ],
-              ),
-            ),
-
-            const Divider(height: 20),
-
-            _sectionTitle('Dịch vụ gần bạn'),
-            _horizontalServiceList(),
-
-            _sectionTitle('Dịch vụ bạn đã sử dụng'),
-            _horizontalServiceList(),
-
-            const SizedBox(height: 20),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _iconShortcut(BuildContext context, IconData icon, String label, Color color, Widget page) {
+  Widget _iconSquare(BuildContext context, IconData icon, String label, Color color, Widget targetPage) {
     return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => page)),
-      child: Column(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: color,
-            child: Icon(icon, color: Colors.black),
-          ),
-          const SizedBox(height: 6),
-          Text(label, style: const TextStyle(fontSize: 12)),
-        ],
-      ),
-    );
-  }
-
-  Widget _sectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(
-        children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const Spacer(),
-          const Icon(Icons.arrow_forward, size: 18, color: Colors.orange),
-        ],
-      ),
-    );
-  }
-
-  Widget _horizontalServiceList() {
-    return SizedBox(
-      height: 110,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: 4,
-        itemBuilder: (context, index) {
-          return Container(
-            width: 100,
-            margin: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(12),
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => targetPage));
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: const [
-                Padding(
-                  padding: EdgeInsets.all(6.0),
-                  child: Text(
-                    'Dịch vụ',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }

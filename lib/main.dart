@@ -24,8 +24,11 @@ import 'package:flutter/material.dart';
 import 'DangKy/Dangky.dart';
 import 'DangKy/InfoUser.dart';
 import 'QuenMk/quenMatKhau.dart';
+import 'Quản Lý/ServiceDetailScreen.dart';
 import 'login/DangNhap.dart';
 import 'login/TrangChinh.dart';
+import 'madicene/MedicineDetailScreen.dart';
+import 'madicene/MedicinePage.dart';
 
 void main() {
   runApp(const MyApp());
@@ -37,7 +40,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: ServicePackageScreen(),
+      home: LoginPage (),
     );
   }
 }

@@ -1,60 +1,63 @@
-import 'package:chamsocpet/Profile/EditProfileScreen.dart';
-import 'package:chamsocpet/Profile/ProfilePage.dart';
-import 'package:chamsocpet/Qu%E1%BA%A3n%20L%C3%BD/EditPetScreen.dart';
 import 'package:flutter/material.dart';
+import 'EditProfileScreen.dart';
 
 class UserInformationScreen extends StatefulWidget {
+  const UserInformationScreen({super.key});
+
   @override
-  State<UserInformationScreen> createState() => _UserInformationScreen();
+  State<UserInformationScreen> createState() => _UserInformationScreenState();
 }
 
-class _UserInformationScreen extends State<UserInformationScreen> {
+class _UserInformationScreenState extends State<UserInformationScreen> {
   String selectedGender = "Nam"; // Mặc định là "Nam"
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.grey[300],
+        title: const Text("Chỉnh sửa thông tin", style: TextStyle(color: Colors.black)),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => ProfilePage()),
-            );
-          },
+        leading: const BackButton(color: Colors.black),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFEFD4F5), Color(0xFF83F1F5)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
         ),
+        backgroundColor: Colors.transparent,
       ),
-      body: Column(
+      backgroundColor: Colors.white,
+      body: ListView(
         children: [
           Container(
-            color: Colors.grey[300],
-            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            color: const Color(0xFFECECEC),
             child: Column(
               children: [
-                const SizedBox(height: 10),
                 CircleAvatar(
                   radius: 40,
                   backgroundColor: Colors.white,
                   child: TextButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      // TODO: xử lý chọn ảnh
+                    },
                     child: const Text("Chọn ảnh"),
                   ),
                 ),
                 const SizedBox(height: 10),
+                const Text(
+                  "Peter",
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          const Text(
-            "Peter",
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
+          const SizedBox(height: 16),
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -63,7 +66,7 @@ class _UserInformationScreen extends State<UserInformationScreen> {
                 const InfoRow(label: "Địa chỉ:", value: "Quận 7"),
                 const InfoRow(label: "Email:", value: "lethanhdanhbtvn@gmail.com"),
                 const InfoRow(label: "Số điện thoại:", value: "0356857480"),
-                const SizedBox(height: 10),
+                const SizedBox(height: 20),
                 const Text("Chọn giới tính:", style: TextStyle(fontSize: 16)),
                 const SizedBox(height: 10),
                 Row(
@@ -72,9 +75,7 @@ class _UserInformationScreen extends State<UserInformationScreen> {
                       value: 'Nam',
                       groupValue: selectedGender,
                       onChanged: (value) {
-                        setState(() {
-                          selectedGender = value!;
-                        });
+                        setState(() => selectedGender = value!);
                       },
                     ),
                     const Text('Nam'),
@@ -83,32 +84,32 @@ class _UserInformationScreen extends State<UserInformationScreen> {
                       value: 'Nữ',
                       groupValue: selectedGender,
                       onChanged: (value) {
-                        setState(() {
-                          selectedGender = value!;
-                        });
+                        setState(() => selectedGender = value!);
                       },
                     ),
                     const Text('Nữ'),
                   ],
                 ),
+                const SizedBox(height: 24),
+                Center(
+                  child: SizedBox(
+                    width: 250,
+                    height: 45,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange[700],
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) =>EditProfileScreen()),
+                        );
+                      },
+                      child: const Text("Chỉnh sửa", style: TextStyle(fontSize: 16)),
+                    ),
+                  ),
+                ),
               ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: 250,
-            height: 45,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange[700],
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => EditProfileScreen()), // Thay thế bằng màn hình bạn muốn chuyển tới
-                );
-              },
-              child: const Text("Chỉnh sửa", style: TextStyle(fontSize: 16)),
             ),
           ),
         ],
@@ -126,17 +127,15 @@ class InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(color: Colors.grey, fontSize: 16)),
+          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 16)),
           const SizedBox(width: 5),
           Expanded(
             child: Text(value,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 16)),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ),
         ],
       ),

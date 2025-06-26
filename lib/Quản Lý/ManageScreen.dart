@@ -1,12 +1,8 @@
-// phần đầu giữ nguyên như cũ
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-
+import 'package:shared_preferences/shared_preferences.dart';
 import 'AddPetScreen.dart';
-import '../Appointment/AppointmentPage.dart';
-import '../Page/PageScreen.dart';
-import '../Profile/ProfilePage.dart';
 
 class ManageScreen extends StatefulWidget {
   const ManageScreen({super.key});
@@ -16,29 +12,60 @@ class ManageScreen extends StatefulWidget {
 }
 
 class _ManageScreen extends State<ManageScreen> {
-  int currentIndex = 2;
   List<dynamic> pets = [];
-  final String userId = 'OWNER0001';
+  String? userId;
 
   @override
   void initState() {
     super.initState();
-    fetchPets();
+    loadUserAndFetchPets();
   }
 
-  Future<void> fetchPets() async {
-    final uri = Uri.parse('http://192.168.0.108:8000/api/pets?UserID=$userId');
-    final response = await http.get(uri);
+  // Tải user_id từ SharedPreferences và gọi API để lấy danh sách pet
+  Future<void> loadUserAndFetchPets() async {
+    final prefs = await SharedPreferences.getInstance();
+    userId = prefs.getString('user_id');
 
-    if (response.statusCode == 200) {
-      setState(() {
-        pets = jsonDecode(response.body);
-      });
+    if (userId != null && userId!.isNotEmpty) {
+      fetchPets();
     } else {
-      print('Lỗi khi lấy danh sách thú cưng: ${response.body}');
+      debugPrint('Không tìm thấy user_id trong SharedPreferences');
+      setState(() {
+        pets = [];
+      });
     }
   }
 
+  // API để lấy danh sách pet của user hiện tại
+  Future<void> fetchPets() async {
+    final token = await _getToken();
+    final uri = Uri.parse('http://192.168.0.108:8000/api/pets/user/$userId');
+    final response = await http.get(uri, headers: {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    });
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      setState(() {
+        pets = decoded is List ? decoded : decoded['data'] ?? [];
+      });
+    } else {
+      debugPrint('❌ Lỗi khi lấy danh sách thú cưng: ${response.body}');
+      setState(() {
+        pets = [];
+      });
+    }
+  }
+
+  // Lấy token từ SharedPreferences
+  Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+
+  // Xóa pet
   Future<void> deletePet(String petId) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -54,11 +81,13 @@ class _ManageScreen extends State<ManageScreen> {
 
     if (confirm != true) return;
 
+    final token = await _getToken();
     final response = await http.delete(
       Uri.parse('http://192.168.0.108:8000/api/pets/$petId'),
       headers: {
+        'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
-        'Accept': 'application/json', // rất quan trọng
+        'Accept': 'application/json',
       },
     );
 
@@ -66,7 +95,7 @@ class _ManageScreen extends State<ManageScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Đã xoá thú cưng")),
       );
-      fetchPets();
+      fetchPets(); // reload sau xoá
     } else {
       showDialog(
         context: context,
@@ -75,23 +104,6 @@ class _ManageScreen extends State<ManageScreen> {
           content: Text("Xoá thất bại: ${response.body}"),
         ),
       );
-    }
-  }
-
-  void _onItemTapped(int index) {
-    setState(() => currentIndex = index);
-    switch (index) {
-      case 0:
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => PageScreen()));
-        break;
-      case 1:
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AppointmentPage()));
-        break;
-      case 2:
-        break;
-      case 3:
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ProfilePage()));
-        break;
     }
   }
 
@@ -138,23 +150,16 @@ class _ManageScreen extends State<ManageScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.grey.shade300,
-        onPressed: () {
-          Navigator.pushReplacement(
+        onPressed: () async {
+          final result = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => AddPetScreen()),
           );
+          if (result == 'added') {
+            fetchPets(); // Reload danh sách thú cưng sau khi thêm
+          }
         },
         child: const Icon(Icons.add, color: Colors.black, size: 30),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: currentIndex,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: 'Lịch hẹn'),
-          BottomNavigationBarItem(icon: Icon(Icons.pets), label: 'Quản lý'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Hồ sơ'),
-        ],
       ),
     );
   }

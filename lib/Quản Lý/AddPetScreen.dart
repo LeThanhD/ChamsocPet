@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
-import 'ManageScreen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AddPetScreen extends StatefulWidget {
   @override
@@ -10,36 +9,64 @@ class AddPetScreen extends StatefulWidget {
 }
 
 class _AddPetScreenState extends State<AddPetScreen> {
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController colorController = TextEditingController();
-  final TextEditingController weightController = TextEditingController();
-  final TextEditingController healthController = TextEditingController();
-  final TextEditingController dobController = TextEditingController();
+  final nameController = TextEditingController();
+  final colorController = TextEditingController();
+  final weightController = TextEditingController();
+  final healthController = TextEditingController();
+  final dobController = TextEditingController();
+  final originController = TextEditingController();
+  final lastVaccineDateController = TextEditingController();
 
   String? selectedGender;
   String? selectedSpecies;
   String? selectedBreed;
+  String? selectedFurType;
+  bool vaccinated = false;
+  bool trained = false;
+  String? userId;
+  bool isLoading = false;
 
   final Map<String, List<String>> breedOptions = {
-    'Chó': [
-      'Poodle', 'Phốc sóc (Pom)', 'Chihuahua', 'Shih Tzu', 'Pug',
-      'Corgi', 'Golden Retriever', 'Labrador Retriever', 'Chó ta (F1, bản địa)'
-    ],
-    'Mèo': [
-      'Mèo ta (mướp/vằn)', 'Mèo Anh lông ngắn', 'Mèo Ba Tư', 'Mèo Xiêm',
-      'Mèo Scottish tai cụp', 'Mèo Maine Coon'
-    ],
+    'Chó': ['Poodle', 'Phốc sóc (Pom)', 'Chihuahua', 'Shih Tzu', 'Pug', 'Corgi', 'Golden Retriever', 'Labrador Retriever', 'Chó ta'],
+    'Mèo': ['Mèo ta', 'Mèo Anh lông ngắn', 'Mèo Ba Tư', 'Mèo Xiêm', 'Mèo Scottish', 'Mèo Maine Coon'],
   };
 
-  // ID người dùng đã đăng nhập (có trong bảng Users)
-  String userId = 'OWNER0001'; // Cập nhật đúng UserID
+  @override
+  void initState() {
+    super.initState();
+    _loadUserId();
+  }
+
+  Future<void> _loadUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    userId = prefs.getString('user_id');
+  }
 
   Future<void> _submitPet() async {
+    if (userId == null ||
+        nameController.text.isEmpty ||
+        selectedGender == null ||
+        colorController.text.isEmpty ||
+        selectedSpecies == null ||
+        selectedBreed == null ||
+        dobController.text.isEmpty ||
+        weightController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Vui lòng nhập đầy đủ thông tin")),
+      );
+      return;
+    }
+
+    setState(() => isLoading = true);
+
     final uri = Uri.parse('http://192.168.0.108:8000/api/pets');
 
     final response = await http.post(
       uri,
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
       body: jsonEncode({
         'Name': nameController.text,
         'Gender': selectedGender,
@@ -50,22 +77,40 @@ class _AddPetScreenState extends State<AddPetScreen> {
         'Weight': double.tryParse(weightController.text) ?? 0,
         'UserID': userId,
         'HealthStatus': healthController.text,
+        'origin': originController.text,
+        'fur_type': selectedFurType,
+        'vaccinated': vaccinated ? 1 : 0,
+        'trained': trained ? 1 : 0,
+        'last_vaccine_date': lastVaccineDateController.text.isNotEmpty
+            ? lastVaccineDateController.text
+            : null,
       }),
     );
 
+    setState(() => isLoading = false);
+
     if (response.statusCode == 201) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => ManageScreen()),
-      );
+      Navigator.pop(context, 'added');
     } else {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          title: Text("Lỗi"),
+          title: const Text("Lỗi"),
           content: Text("Thêm thú cưng thất bại: ${response.body}"),
         ),
       );
+    }
+  }
+
+  Future<void> _pickDate(TextEditingController controller) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(2020),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) {
+      controller.text = picked.toIso8601String().split('T').first;
     }
   }
 
@@ -73,7 +118,6 @@ class _AddPetScreenState extends State<AddPetScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        constraints: const BoxConstraints.expand(),
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [Color(0xFFEFD4F5), Color(0xFF83F1F5)],
@@ -83,7 +127,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -95,10 +139,8 @@ class _AddPetScreenState extends State<AddPetScreen> {
                     ),
                     const Expanded(
                       child: Center(
-                        child: Text(
-                          'Thêm thú cưng',
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                        ),
+                        child: Text('Thêm thú cưng',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(width: 48),
@@ -120,7 +162,6 @@ class _AddPetScreenState extends State<AddPetScreen> {
                     Expanded(child: _buildTextField('Màu sắc', colorController)),
                   ],
                 ),
-                const SizedBox(height: 12),
                 _buildDropdownField(
                   label: 'Loài',
                   items: breedOptions.keys.toList(),
@@ -130,26 +171,63 @@ class _AddPetScreenState extends State<AddPetScreen> {
                     selectedBreed = null;
                   }),
                 ),
-                const SizedBox(height: 12),
                 _buildDropdownField(
                   label: 'Giống',
                   items: selectedSpecies != null ? breedOptions[selectedSpecies]! : [],
                   selectedValue: selectedBreed,
                   onChanged: (value) => setState(() => selectedBreed = value),
                 ),
-                const SizedBox(height: 12),
                 Row(
                   children: [
-                    Expanded(child: _buildTextField('Ngày sinh (YYYY-MM-DD)', dobController)),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _pickDate(dobController),
+                        child: AbsorbPointer(
+                          child: _buildTextField('Ngày sinh', dobController),
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: 12),
                     Expanded(child: _buildTextField('Cân nặng (kg)', weightController)),
                   ],
                 ),
-                const SizedBox(height: 12),
-                _buildTextField('Tình trạng sức khỏe(nếu bệnh có thế ghi rõ triệu chứng)', healthController),
+                _buildTextField('Tình trạng sức khỏe', healthController),
+                _buildDropdownField(
+                  label: 'Loại lông',
+                  items: ['Ngắn', 'Dài', 'Xoăn'],
+                  selectedValue: selectedFurType,
+                  onChanged: (value) => setState(() => selectedFurType = value),
+                ),
+                _buildTextField('Nguồn gốc', originController),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SwitchListTile(
+                        title: const Text("Đã tiêm ngừa"),
+                        value: vaccinated,
+                        onChanged: (value) => setState(() => vaccinated = value),
+                      ),
+                    ),
+                    Expanded(
+                      child: SwitchListTile(
+                        title: const Text("Đã huấn luyện"),
+                        value: trained,
+                        onChanged: (value) => setState(() => trained = value),
+                      ),
+                    ),
+                  ],
+                ),
+                GestureDetector(
+                  onTap: () => _pickDate(lastVaccineDateController),
+                  child: AbsorbPointer(
+                    child: _buildTextField('Ngày tiêm gần nhất', lastVaccineDateController),
+                  ),
+                ),
                 const SizedBox(height: 24),
                 Center(
-                  child: ElevatedButton(
+                  child: isLoading
+                      ? const CircularProgressIndicator()
+                      : ElevatedButton(
                     onPressed: _submitPet,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.deepOrange,
@@ -158,12 +236,9 @@ class _AddPetScreenState extends State<AddPetScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: const Text(
-                      'Xác nhận',
-                      style: TextStyle(fontSize: 16, color: Colors.white),
-                    ),
+                    child: const Text('Xác nhận', style: TextStyle(color: Colors.white)),
                   ),
-                )
+                ),
               ],
             ),
           ),
@@ -179,7 +254,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
         controller: controller,
         decoration: InputDecoration(
           labelText: label,
-          border: OutlineInputBorder(),
+          border: const OutlineInputBorder(),
           filled: true,
           fillColor: Colors.white,
         ),

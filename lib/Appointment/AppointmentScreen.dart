@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../Page/PageScreen.dart';
-import '../Quản Lý/ManageScreen.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'AppointmentPage.dart';
 
 class AppointmentScreen extends StatefulWidget {
   @override
@@ -8,12 +10,176 @@ class AppointmentScreen extends StatefulWidget {
 }
 
 class _AppointmentScreenState extends State<AppointmentScreen> {
-  final TextEditingController customerNameController = TextEditingController();
   final TextEditingController noteController = TextEditingController();
 
+  String? userId;
   String? selectedTime;
-  String? selectedService;
-  String? selectedPetName;
+  String? selectedPetID;
+  String? selectedServiceID;
+  String? selectedServiceName;
+  DateTime? selectedDate;
+
+  List<dynamic> petList = [];
+  List<dynamic> serviceList = [];
+
+  @override
+  void initState() {
+    super.initState();
+    initUserData();
+  }
+
+  Future<void> initUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    userId = prefs.getString('user_id');
+    if (userId == null || userId!.isEmpty) return;
+
+    await fetchPets();
+    await fetchServices();
+  }
+
+  Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+
+  Future<void> fetchPets() async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('http://192.168.0.108:8000/api/pets/user/$userId'),
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      final List<dynamic> pets = decoded is List ? decoded : decoded['data'] ?? [];
+
+      setState(() {
+        petList = pets;
+        if (petList.isNotEmpty) {
+          selectedPetID = petList[0]['PetID'].toString();
+        }
+      });
+    } else {
+      print('❌ fetchPets failed: ${response.body}');
+    }
+  }
+
+  Future<void> fetchServices() async {
+    final response = await http.get(
+      Uri.parse('http://192.168.0.108:8000/api/services/all'),
+      headers: {'Accept': 'application/json'},
+    );
+
+    if (response.statusCode == 200) {
+      try {
+        final Map<String, dynamic> decoded = jsonDecode(response.body);
+        final List<dynamic> services = decoded['data']['data'];
+
+        setState(() {
+          serviceList = services;
+          if (services.isNotEmpty) {
+            selectedServiceName = services[0]['ServiceName']?.toString();
+            selectedServiceID = services[0]['ServiceID']?.toString();
+          }
+        });
+      } catch (e) {
+        print('❌ Error parsing service list: $e');
+      }
+    } else {
+      print('❌ fetchServices failed: ${response.body}');
+    }
+  }
+
+  Future<void> updatePetNoteService() async {
+    final response = await http.put(
+      Uri.parse('http://192.168.0.108:8000/api/pet-notes/update-service'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'PetID': selectedPetID,
+        'ServiceID': selectedServiceID,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      print("⚠️ Lỗi cập nhật ServiceID trong PetNotes: ${response.body}");
+    }
+  }
+
+  Future<void> submitAppointment() async {
+    if (selectedPetID == null || selectedServiceID == null || selectedDate == null || selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Vui lòng chọn đầy đủ thông tin")),
+      );
+      return;
+    }
+
+    final token = await getToken();
+    if (token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Token không tồn tại. Vui lòng đăng nhập lại.")),
+      );
+      return;
+    }
+
+    String formattedTime = selectedTime!;
+    if (formattedTime.length == 5) {
+      formattedTime = '$formattedTime:00';
+    }
+
+    final response = await http.post(
+      Uri.parse('http://192.168.0.108:8000/api/appointments'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'PetID': selectedPetID,
+        'ServiceID': selectedServiceID,
+        'AppointmentDate': selectedDate!.toIso8601String().split('T')[0],
+        'AppointmentTime': formattedTime,
+        'Reason': noteController.text,
+        'Status': 'Chưa duyệt',
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      await updatePetNoteService();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đặt hẹn thành công')),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => AppointmentPage(appointmentData: {},)),
+      );
+    } else {
+      print('Appointment API Error: ${response.statusCode}');
+      print('Body: ${response.body}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi đặt hẹn (${response.statusCode})')),
+      );
+    }
+  }
+
+  Widget _buildDropdown(String label, String? value, List<DropdownMenuItem<String>> items, void Function(String?)? onChanged) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: DropdownButtonFormField<String>(
+        value: items.any((item) => item.value == value) ? value : null,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+          filled: true,
+          fillColor: Colors.white,
+        ),
+        items: items,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,49 +199,99 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.arrow_back),
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => PageScreen()),
-                    );
-                  },
+                  onPressed: () => Navigator.pop(context),
                 ),
                 const Spacer(),
-                const Text(
-                  'Đặt lịch hẹn',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
+                const Text('Đặt lịch hẹn', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 const Spacer(),
                 const SizedBox(width: 48),
               ],
             ),
-
             const SizedBox(height: 24),
-
-            // Chọn thú cưng
-            _buildPetField(context),
-
-            // Tên khách hàng
-            _buildTextField('Tên khách hàng', customerNameController),
-
-            // Ngày hẹn & Giờ hẹn
+            _buildDropdown(
+              'Thú cưng',
+              selectedPetID,
+              petList.map((pet) => DropdownMenuItem<String>(
+                value: pet['PetID'].toString(),
+                child: Text(pet['Name']),
+              )).toList(),
+                  (value) => setState(() => selectedPetID = value),
+            ),
             Row(
               children: [
-                Expanded(child: _buildDatePicker(context, 'Ngày hẹn')),
+                Expanded(
+                  child: TextField(
+                    readOnly: true,
+                    controller: TextEditingController(
+                      text: selectedDate != null ? selectedDate!.toIso8601String().split('T')[0] : '',
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Ngày hẹn',
+                      border: OutlineInputBorder(),
+                      filled: true,
+                      fillColor: Colors.white,
+                      suffixIcon: Icon(Icons.calendar_today),
+                    ),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime(2100),
+                        initialDate: DateTime.now(),
+                      );
+                      if (picked != null) {
+                        setState(() => selectedDate = picked);
+                      }
+                    },
+                  ),
+                ),
                 const SizedBox(width: 8),
-                Expanded(child: _buildTimeDropdown()),
+                Expanded(
+                  child: _buildDropdown(
+                    'Giờ hẹn',
+                    selectedTime,
+                    List.generate(10, (i) => '${8 + i}:00').map((time) => DropdownMenuItem<String>(
+                      value: time,
+                      child: Text(time),
+                    )).toList(),
+                        (value) => setState(() => selectedTime = value),
+                  ),
+                ),
               ],
             ),
-
-            // Dịch vụ
-            _buildServiceDropdown(),
-
-            // Ghi chú
-            _buildTextField('Ghi chú', noteController),
-
+            _buildDropdown(
+              'Dịch vụ',
+              selectedServiceName,
+              serviceList.map((service) => DropdownMenuItem<String>(
+                value: service['ServiceName']?.toString(),
+                child: Text(service['ServiceName'] ?? ''),
+              )).toList(),
+                  (value) {
+                setState(() {
+                  selectedServiceName = value;
+                  final matched = serviceList.firstWhere(
+                        (s) => s['ServiceName']?.toString() == value,
+                    orElse: () => null,
+                  );
+                  if (matched != null) {
+                    selectedServiceID = matched['ServiceID']?.toString();
+                  }
+                });
+              },
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: TextField(
+                controller: noteController,
+                decoration: const InputDecoration(
+                  labelText: 'Ghi chú',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
-
-            // Nút đặt hẹn
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -86,20 +302,13 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: () {
-                  // TODO: handle submission
-                },
+                onPressed: submitAppointment,
                 child: const Text('Đặt hẹn', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ),
             ),
-
             const SizedBox(height: 32),
-
             const Center(
-              child: Text(
-                'GIỜ LÀM VIỆC',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 30),
-              ),
+              child: Text('GIỜ LÀM VIỆC', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 30)),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -109,133 +318,6 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildTextField(String label, TextEditingController controller) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: TextField(
-        controller: controller,
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTimeDropdown() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: DropdownButtonFormField<String>(
-        value: selectedTime ?? '12:00',
-        decoration: const InputDecoration(
-          labelText: 'Giờ hẹn',
-          border: OutlineInputBorder(),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-        items: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00']
-            .map((time) => DropdownMenuItem<String>(
-          value: time,
-          child: Text(time),
-        ))
-            .toList(),
-        onChanged: (value) {
-          setState(() {
-            selectedTime = value;
-          });
-        },
-      ),
-    );
-  }
-
-  Widget _buildDatePicker(BuildContext context, String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: TextField(
-        readOnly: true,
-        decoration: const InputDecoration(
-          labelText: 'Ngày hẹn',
-          border: OutlineInputBorder(),
-          filled: true,
-          fillColor: Colors.white,
-          suffixIcon: Icon(Icons.calendar_today),
-        ),
-        onTap: () async {
-          await showDatePicker(
-            context: context,
-            firstDate: DateTime.now(),
-            lastDate: DateTime(2100),
-            initialDate: DateTime.now(),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildServiceDropdown() {
-    final services = [
-      'Cấp cứu 24/7',
-      'Khám định kỳ/tổng quát',
-      'Tắm Sấy, Spa và Cắt Tỉa',
-      'Tiêm phòng vaccine',
-      'Triệt Sản Chó Mèo',
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: DropdownButtonFormField<String>(
-        value: selectedService,
-        onChanged: (value) {
-          setState(() {
-            selectedService = value;
-          });
-        },
-        decoration: const InputDecoration(
-          labelText: 'Dịch vụ',
-          border: OutlineInputBorder(),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-        items: services.map((service) {
-          return DropdownMenuItem<String>(
-            value: service,
-            child: Text(service),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildPetField(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: TextFormField(
-        readOnly: true,
-        controller: TextEditingController(text: selectedPetName ?? ''),
-        decoration: const InputDecoration(
-          labelText: 'Thú cưng',
-          border: OutlineInputBorder(),
-          filled: true,
-          fillColor: Colors.white,
-          suffixIcon: Icon(Icons.pets),
-        ),
-        onTap: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => ManageScreen()),
-          );
-          if (result != null && result is String) {
-            setState(() {
-              selectedPetName = result;
-            });
-          }
-        },
       ),
     );
   }

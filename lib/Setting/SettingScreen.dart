@@ -1,10 +1,7 @@
-import 'package:chamsocpet/Profile/ProfilePage.dart';
-import 'package:chamsocpet/Setting/MedicalHistoryScreen.dart';
 import 'package:flutter/material.dart';
-
 import 'ChangePasswordScreen.dart';
 import 'SwitchAccountScreen.dart';
-
+import '../Setting/MedicalHistoryScreen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -21,46 +18,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text("Cài đặt", style: TextStyle(color: Colors.black)),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context), // Không gọi lại ProfilePage
+        ),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFEFD4F5), Color(0xFF83F1F5)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+      ),
+      backgroundColor: Colors.white,
       body: Column(
         children: [
-          // Gradient Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFFCCBFFF), Color(0xFF47D7E9)],
-              ),
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.black),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => ProfilePage()), // Thay thế bằng màn hình bạn muốn chuyển tới
-                    );
-                  },
-                ),
-                const Expanded(
-                  child: Center(
-                    child: Text(
-                      'Cài đặt',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 48), // để cân đối icon back
-              ],
-            ),
-
-          ),
-
-          // Setting items
           Expanded(
             child: ListView(
               children: [
@@ -73,7 +51,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     MaterialPageRoute(builder: (context) => const ChangePasswordScreen()),
                   );
                 }),
-
                 buildSwitchTile("Thông báo", notifications, (val) {
                   setState(() => notifications = val);
                 }),
@@ -96,7 +73,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
 
-          // Đăng xuất Button
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: SizedBox(
@@ -109,7 +85,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: () {},
+                onPressed: () {
+                  // TODO: xử lý đăng xuất tại đây
+                },
                 child: const Text(
                   'ĐĂNG XUẤT',
                   style: TextStyle(

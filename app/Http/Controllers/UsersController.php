@@ -8,7 +8,6 @@ use App\Models\Users;
 
 class UsersController extends Controller
 {
-    // Tạo mã UserID dựa trên vai trò
     private function generateUserID($role)
     {
         $prefix = strtoupper($role);
@@ -24,7 +23,35 @@ class UsersController extends Controller
         return $prefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
     }
 
-    // Tạo người dùng mới
+    // ✅ Đăng nhập người dùng (KHÔNG ĐỤNG TỚI)
+    public function login(Request $request)
+    {
+        $request->validate([
+            'username' => 'required',
+            'password' => 'required'
+        ]);
+
+        $user = Users::where('Username', $request->username)->first();
+
+        if (!$user || !Hash::check($request->password, $user->PasswordHash)) {
+            return response()->json(['message' => 'Sai tài khoản hoặc mật khẩu'], 401);
+        }
+
+        $token = $user->createToken('authToken')->plainTextToken;
+
+        return response()->json([
+        'token' => $token,
+        'user'  => [
+            'UserID'   => $user->UserID,
+            'FullName' => $user->FullName,
+            'Email'    => $user->Email,
+            'Role'     => $user->Role,
+            'Image'    => $user->ProfilePicture ?? '',
+        ]
+    ]);
+    }
+
+    // ✅ Đăng ký người dùng (KHÔNG ĐỤNG TỚI)
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -36,31 +63,46 @@ class UsersController extends Controller
             'birth_date'   => 'required|date',
             'address'      => 'required',
             'national_id'  => ['required', 'digits_between:9,12', 'unique:Users,NationalID'],
+            'role'         => 'nullable|in:customer,staff,owner',
         ]);
 
-        $role = 'owner'; // có thể lấy từ $request nếu client truyền lên
-
         $user = new Users();
-        $user->UserID         = $this->generateUserID($role);
-        $user->Username       = $validated['username'];
-        $user->PasswordHash   = Hash::make($validated['password']);
-        $user->Email          = $validated['email'];
-        $user->Phone          = $validated['phone'];
-        $user->FullName       = $validated['full_name'];
-        $user->BirthDate      = $validated['birth_date'];
-        $user->Address        = $validated['address'];
-        $user->NationalID     = $validated['national_id'];
-        $user->Gender         = 1;
-        $user->ProfilePicture = null;
-        $user->Role           = $role;
-        $user->Status         = 'active';
-
+        $user->UserID = 'OWNER' . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
+        $user->Username = $validated['username'];
+        $user->PasswordHash = Hash::make($validated['password']);
+        $user->Email = $validated['email'];
+        $user->Phone = $validated['phone'];
+        $user->FullName = $validated['full_name'];
+        $user->BirthDate = $validated['birth_date'];
+        $user->Address = $validated['address'];
+        $user->NationalID = $validated['national_id'];
+        $user->Gender = 1;
+        $user->Role = $request->input('role', 'customer');
+        $user->Status = 'active';
+        $user->CreatedAt = now();
         $user->save();
 
         return response()->json(['message' => 'Người dùng đã được tạo thành công!'], 201);
     }
 
-    // Lấy danh sách người dùng (có phân trang & tìm kiếm)
+
+    // ✅ Lấy thông tin người dùng theo UserID (dùng trong Flutter ProfilePage)
+    public function getUserById($id)
+    {
+        $user = Users::where('UserID', $id)->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'Người dùng không tồn tại'], 404);
+        }
+
+        return response()->json([
+            'name' => $user->FullName,
+            'image' => is_string($user->ProfilePicture) ? $user->ProfilePicture : ''
+    ]);
+
+    }
+
+    // ✅ Lấy danh sách người dùng
     public function getList($page = 1, $search = '')
     {
         $query = Users::query();
@@ -78,42 +120,40 @@ class UsersController extends Controller
         return response()->json($users);
     }
 
-    // Cập nhật người dùng
+    // ✅ Cập nhật người dùng
     public function update(Request $request, $id)
-{
-    $user = Users::where('UserID', $id)->firstOrFail();
+    {
+        $user = Users::where('UserID', $id)->firstOrFail();
 
-    $validated = $request->validate([
-        'email'        => "nullable|email|unique:Users,Email,$id,UserID",
-        'phone'        => ['nullable', 'regex:/^(0|\+84)[0-9]{9,10}$/'],
-        'full_name'    => 'nullable|string',
-        'birth_date'   => 'nullable|date',
-        'address'      => 'nullable|string',
-        'national_id'  => "nullable|digits_between:9,12|unique:Users,NationalID,$id,UserID",
-        'password'     => 'nullable|min:8', // ✅ thêm validate password nếu có
-    ]);
+        $validated = $request->validate([
+            'email'        => "nullable|email|unique:Users,Email,$id,UserID",
+            'phone'        => ['nullable', 'regex:/^(0|\+84)[0-9]{9,10}$/'],
+            'full_name'    => 'nullable|string',
+            'birth_date'   => 'nullable|date',
+            'address'      => 'nullable|string',
+            'national_id'  => "nullable|digits_between:9,12|unique:Users,NationalID,$id,UserID",
+            'password'     => 'nullable|min:8',
+        ]);
 
-    $user->fill([
-        'Email'      => $validated['email'] ?? $user->Email,
-        'Phone'      => $validated['phone'] ?? $user->Phone,
-        'FullName'   => $validated['full_name'] ?? $user->FullName,
-        'BirthDate'  => $validated['birth_date'] ?? $user->BirthDate,
-        'Address'    => $validated['address'] ?? $user->Address,
-        'NationalID' => $validated['national_id'] ?? $user->NationalID,
-    ]);
+        $user->fill([
+            'Email'      => $validated['email'] ?? $user->Email,
+            'Phone'      => $validated['phone'] ?? $user->Phone,
+            'FullName'   => $validated['full_name'] ?? $user->FullName,
+            'BirthDate'  => $validated['birth_date'] ?? $user->BirthDate,
+            'Address'    => $validated['address'] ?? $user->Address,
+            'NationalID' => $validated['national_id'] ?? $user->NationalID,
+        ]);
 
-    // ✅ Nếu người dùng có gửi mật khẩu mới
-    if ($request->filled('password')) {
-        $user->PasswordHash = Hash::make($request->password);
+        if ($request->filled('password')) {
+            $user->PasswordHash = Hash::make($request->password);
+        }
+
+        $user->save();
+
+        return response()->json(['message' => 'Người dùng đã được cập nhật!']);
     }
 
-    $user->save();
-
-    return response()->json(['message' => 'Người dùng đã được cập nhật!']);
-}
-
-
-    // Xóa người dùng
+    // ✅ Xoá người dùng
     public function destroy($id)
     {
         $user = Users::where('UserID', $id)->firstOrFail();
@@ -122,37 +162,10 @@ class UsersController extends Controller
         return response()->json(['message' => 'Người dùng đã được xóa!']);
     }
 
-    public function login(Request $request)
-{
-    $request->validate([
-        'username' => 'required',
-        'password' => 'required',
-    ]);
-
-    $user = Users::where('Username', $request->username)->first();
-
-    if (!$user || !Hash::check($request->password, $user->PasswordHash)) {
-        return response()->json(['message' => 'Unauthorized'], 401);
-    }
-
-    $token = $user->createToken('api_token')->plainTextToken;
-
-    return response()->json([
-        'message' => 'Đăng nhập thành công',
-        'token' => $token,
-        'user' => [
-            'id' => $user->UserID,
-            'username' => $user->Username,
-            'email' => $user->Email
-        ]
-    ]);
-}
-
-
+    // ✅ Đăng xuất
     public function logout(Request $request)
     {
         $request->user()->tokens()->delete();
         return response()->json(['message' => 'Đăng xuất thành công']);
     }
-
 }

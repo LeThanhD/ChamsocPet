@@ -6,10 +6,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class Service extends Model
 {
+    // Đảm bảo khai báo tên bảng chính xác
+    protected $table = 'services';  // Thêm dấu chấm phẩy ở đây
+
+    // Cấu hình khóa chính của bảng
     protected $primaryKey = 'ServiceID';
-    public $incrementing = false;
-    protected $keyType = 'string';
+    public $incrementing = false;  // Khóa chính không tự động tăng
+    protected $keyType = 'string'; // Xác định kiểu khóa chính là string (do ServiceID là chuỗi)
     
+    // Các trường có thể gán giá trị
     protected $fillable = [
         'ServiceName',
         'Description',
@@ -17,6 +22,7 @@ class Service extends Model
         'CategoryID'
     ];
 
+    // Quan hệ với bảng ServiceCategory
     public function category()
     {
         return $this->belongsTo(ServiceCategory::class, 'CategoryID', 'CategoryID');

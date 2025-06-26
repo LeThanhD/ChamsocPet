@@ -4,12 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Medication extends Model
+class Medications extends Model
 {
     protected $table = 'medications';
     protected $primaryKey = 'MedicationID';
     public $incrementing = false;
-    protected $keyType = 'string';
+    public $timestamps = false;
 
     protected $fillable = [
         'MedicationID',
@@ -17,5 +17,7 @@ class Medication extends Model
         'UsageInstructions',
         'Quantity',
         'Unit',
+        'ImageURL',
+        'Price'
     ];
 }

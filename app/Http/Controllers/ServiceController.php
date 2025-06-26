@@ -1,28 +1,53 @@
 <?php
 
 namespace App\Http\Controllers;
-
 use Illuminate\Http\Request;
 use App\Models\Service;
 
 class ServiceController extends Controller
 {
+    // ✅ Lấy danh sách dịch vụ với phân trang và tìm kiếm
+    public function index(Request $request)
+    {
+        try {
+            // Kiểm tra điều kiện phân trang và tìm kiếm
+            $services = Service::when($request->has('search'), function($query) use ($request) {
+                return $query->where('ServiceName', 'like', '%' . $request->search . '%');
+            })
+            ->paginate(10); // Lấy danh sách dịch vụ phân trang
+           
+            return response()->json([
+                'success' => true,
+                'message' => 'Lấy danh sách dịch vụ thành công!',
+                'data' => $services
+            ], 200);
+           
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi lấy danh sách: ' . $e->getMessage(),
+                'data' => []
+            ], 500);
+        }
+    }
+
+    // ✅ Lấy danh sách dịch vụ theo từ khoá
     public function getList(Request $request)
     {
+        // Lấy dữ liệu từ request
         $data = $request->all();
-        $data['search'] = $data['search'] ?? '';
-        $data['page'] = $data['page'] ?? 1;
+        $data['search'] = $data['search'] ?? '';  // Lấy từ khóa tìm kiếm (nếu có)
+        $data['page'] = $data['page'] ?? 1;        // Lấy trang (nếu có)
 
         try {
-            $list = Service::where('ServiceName', 'like', '%' . $data['search'] . '%')
-                ->offset(($data['page'] - 1) * 10)
-                ->limit(10)
-                ->get();
+            // Tìm kiếm và phân trang dịch vụ
+            $services = Service::where('ServiceName', 'like', '%' . $data['search'] . '%')
+                ->paginate(10);  // Phân trang với 10 kết quả mỗi trang
 
             return response()->json([
                 'success' => true,
                 'message' => 'Lấy danh sách dịch vụ thành công!',
-                'data' => $list
+                'data' => $services  // Trả về dữ liệu phân trang
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -33,6 +58,7 @@ class ServiceController extends Controller
         }
     }
 
+    // ✅ Lấy chi tiết dịch vụ theo ID
     public function getDetail($id)
     {
         try {
@@ -51,6 +77,7 @@ class ServiceController extends Controller
         }
     }
 
+    // ✅ Thêm mới dịch vụ
     public function create(Request $request)
     {
         try {
@@ -61,11 +88,7 @@ class ServiceController extends Controller
                 'CategoryID' => 'required|string|exists:servicecategories,CategoryID',
             ]);
 
-            $count = Service::count();
-            $serviceId = 'SERV' . str_pad($count + 1, 4, '0', STR_PAD_LEFT);
-
             $service = Service::create([
-                'ServiceID' => $serviceId,
                 'ServiceName' => $request->ServiceName,
                 'Description' => $request->Description,
                 'Price' => $request->Price,
@@ -86,6 +109,7 @@ class ServiceController extends Controller
         }
     }
 
+    // ✅ Cập nhật dịch vụ
     public function update(Request $request, $id)
     {
         try {
@@ -114,6 +138,7 @@ class ServiceController extends Controller
         }
     }
 
+    // ✅ Xoá dịch vụ
     public function delete($id)
     {
         try {

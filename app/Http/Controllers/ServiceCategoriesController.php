@@ -7,31 +7,44 @@ use App\Models\ServiceCategories;
 
 class ServiceCategoriesController extends Controller
 {
-    function getList(Request $request)
-    {
-        $data = $request->all();
-        $data['search'] = $data['search'] ?? '';
-        $data['page'] = $data['page'] ?? 1;
+    public function getList(Request $request)
+{
+    $data = $request->all();
+    $data['search'] = $data['search'] ?? '';  // Lấy từ khóa tìm kiếm (nếu có)
+    $data['page'] = $data['page'] ?? 1;        // Lấy trang (nếu có)
+    $data['category'] = $data['category'] ?? ''; // Lọc theo CategoryID (nếu có)
 
-        try {
-            $list = ServiceCategories::where('CategoryName', 'like', '%' . $data['search'] . '%')
-                ->offset(($data['page'] - 1) * 10)
-                ->limit(10)
-                ->get();
+    try {
+        // Lọc theo tên dịch vụ và phân trang
+        $query = Service::query();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Lấy danh sách loại dịch vụ thành công!',
-                'data' => $list
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Lỗi khi lấy danh sách: ' . $e->getMessage(),
-                'data' => []
-            ], 500);
+        // Lọc theo CategoryID (nếu có)
+        if ($data['category']) {
+            $query->where('CategoryID', $data['category']);
         }
+
+        // Tìm kiếm theo tên dịch vụ (nếu có)
+        if ($data['search']) {
+            $query->where('ServiceName', 'like', '%' . $data['search'] . '%');
+        }
+
+        // Phân trang với 10 kết quả mỗi trang
+        $services = $query->paginate(10);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Lấy danh sách dịch vụ thành công!',
+            'data' => $services
+        ], 200);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Lỗi khi lấy danh sách: ' . $e->getMessage(),
+            'data' => []
+        ], 500);
     }
+}
+
 
     function getDetail($id)
     {

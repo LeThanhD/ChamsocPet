@@ -3,21 +3,23 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Medication;
+use App\Models\Medications;
 
-class MedicationController extends Controller
+class MedicationsController extends Controller
 {
-    function getList(Request $request)
+    // Lấy danh sách thuốc với tìm kiếm + phân trang
+    public function getList(Request $request)
     {
+        // Khách hàng có thể tìm kiếm thuốc và xem danh sách thuốc
         $data = $request->all();
         $data['search'] = $data['search'] ?? '';
         $data['page'] = $data['page'] ?? 1;
 
         try {
-            $list = Medication::where('Name', 'like', '%' . $data['search'] . '%')
+            $list = Medications::where('Name', 'like', '%' . $data['search'] . '%')
                 ->offset(($data['page'] - 1) * 10)
                 ->limit(10)
-                ->get();
+                ->get(['Name', 'Price', 'ImageURL', 'UsageInstructions']);
 
             return response()->json([
                 'success' => true,
@@ -33,10 +35,13 @@ class MedicationController extends Controller
         }
     }
 
-    function getDetail($id)
+
+    // Lấy chi tiết thuốc theo ID
+    // Lấy chi tiết thuốc cho khách hàng
+    public function getDetail($id)
     {
         try {
-            $item = Medication::findOrFail($id);
+            $item = Medications::findOrFail($id);  // Tìm thuốc theo ID
             return response()->json([
                 'success' => true,
                 'message' => 'Lấy thông tin thuốc thành công!',
@@ -51,7 +56,8 @@ class MedicationController extends Controller
         }
     }
 
-    function create(Request $request)
+    // Tạo thuốc mới
+    public function create(Request $request)
     {
         try {
             $request->validate([
@@ -59,13 +65,22 @@ class MedicationController extends Controller
                 'UsageInstructions' => 'nullable|string',
                 'Quantity' => 'required|integer|min:0',
                 'Unit' => 'required|string|max:20',
+                'ImageURL' => 'nullable|url|max:255',
+                'Price' => 'required|integer|min:0'
             ]);
 
-            $count = Medication::count();
+            $count = Medications::count();
             $medicationId = 'MED' . str_pad($count + 1, 4, '0', STR_PAD_LEFT);
 
-            $medication = Medication::create(array_merge(
-                $request->all(),
+            $medication = Medications::create(array_merge(
+                $request->only([
+                    'Name',
+                    'UsageInstructions',
+                    'Quantity',
+                    'Unit',
+                    'ImageURL',
+                    'Price'
+                ]),
                 ['MedicationID' => $medicationId]
             ));
 
@@ -83,10 +98,11 @@ class MedicationController extends Controller
         }
     }
 
-    function update(Request $request, $id)
+    // Cập nhật thuốc
+    public function update(Request $request, $id)
     {
         try {
-            $medication = Medication::findOrFail($id);
+            $medication = Medications::findOrFail($id);
             $medication->update($request->all());
 
             return response()->json([
@@ -103,10 +119,11 @@ class MedicationController extends Controller
         }
     }
 
-    function delete($id)
+    // Xóa thuốc
+    public function delete($id)
     {
         try {
-            $medication = Medication::findOrFail($id);
+            $medication = Medications::findOrFail($id);
             $medication->delete();
 
             return response()->json([

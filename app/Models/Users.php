@@ -2,15 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-
 class Users extends Authenticatable
 {
     use HasApiTokens, Notifiable;
 
-    protected $table = 'Users';
+    protected $table = 'users';
     protected $primaryKey = 'UserID';
     public $incrementing = false;
     public $timestamps = false;
@@ -32,19 +31,15 @@ class Users extends Authenticatable
         'CreatedAt'
     ];
 
-    /**
-     * Laravel mặc định gọi cột "password" => cần override
-     */
+    // Ghi đè để Laravel biết dùng PasswordHash thay vì 'password'
     public function getAuthPassword()
     {
         return $this->PasswordHash;
     }
 
-    /**
-     * Laravel mặc định gọi cột "email" để xác định người dùng => cần override
-     */
-    public function getAuthIdentifierName()
-    {
-        return 'Username';
-    }
+    protected $hidden = [
+        'PasswordHash',     // Ẩn mật khẩu khỏi JSON
+        'NationalID',       // Ẩn nếu không muốn lộ thông tin nhạy cảm
+        'tokens',           // Nếu bạn có quan hệ với Sanctum tokens
+    ];
 }

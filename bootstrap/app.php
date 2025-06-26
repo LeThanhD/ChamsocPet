@@ -13,9 +13,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        $middleware->append(EnsureFrontendRequestsAreStateful::class);
+        // ✅ Đăng ký middleware toàn cục
         $middleware->append(HandleCors::class);
+        // ✅ Đăng ký middleware alias ở đây
+        $middleware->alias([
+            'role' => \App\Http\Middleware\RoleMiddleware::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
-    })->create();
+    })
+    ->create();

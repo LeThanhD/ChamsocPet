@@ -4,126 +4,98 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\PetNotes;
+use Illuminate\Support\Facades\Validator;
 
 class PetNotesController extends Controller
 {
-    function getList(Request $request)
+    public function getList()
     {
-        $data = $request->all();
-        $data['search'] = $data['search'] ?? '';
-        $data['page'] = $data['page'] ?? 1;
-
-        try {
-            $list = PetNotes::where('Content', 'like', '%' . $data['search'] . '%')
-                ->offset(($data['page'] - 1) * 10)
-                ->limit(10)
-                ->get();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Lấy danh sách ghi chú thành công!',
-                'data' => $list
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Lỗi khi lấy danh sách: ' . $e->getMessage(),
-                'data' => []
-            ], 500);
-        }
+        $notes = PetNotes::with(['pet', 'user', 'service'])->get();
+        return response()->json($notes);
     }
 
-    function getDetail($id)
+    public function getDetail($id)
     {
-        try {
-            $note = PetNotes::findOrFail($id);
-            return response()->json([
-                'success' => true,
-                'message' => 'Lấy chi tiết ghi chú thành công!',
-                'data' => $note
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Không tìm thấy ghi chú: ' . $e->getMessage(),
-                'data' => null
-            ], 404);
+        $note = PetNotes::with(['pet', 'user', 'service'])->find($id);
+        if (!$note) {
+            return response()->json(['message' => 'Note not found'], 404);
         }
+        return response()->json($note);
     }
 
-    function create(Request $request)
-    {
-        try {
-            $request->validate([
-                'PetID' => 'required|exists:pets,PetID',
-                'CreatedBy' => 'required|exists:users,UserID',
-                'Content' => 'required|string',
-                'ServiceID' => 'nullable|exists:services,ServiceID',
-            ]);
+    private function generateUniqueNoteID()
+{
+    return DB::transaction(function () {
+        // Lock table để tránh tạo trùng trong quá trình song song
+        DB::statement('LOCK TABLES PetNotes WRITE');
 
-            $count = PetNotes::count();
-            $noteId = 'PNOTE' . str_pad($count + 1, 4, '0', STR_PAD_LEFT);
+        // Lấy bản ghi có NoteID cao nhất
+        $lastNote = PetNotes::orderByDesc(DB::raw('CAST(SUBSTRING(NoteID, 6) AS UNSIGNED)'))->first();
 
-            $note = PetNotes::create([
-                'NoteID' => $noteId,
-                'PetID' => $request->PetID,
-                'CreatedBy' => $request->CreatedBy,
-                'Content' => $request->Content,
-                'CreatedAt' => now(),
-                'ServiceID' => $request->ServiceID,
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Tạo ghi chú thành công!',
-                'data' => $note
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Lỗi khi tạo ghi chú: ' . $e->getMessage(),
-                'data' => null
-            ], 500);
+        $nextNumber = 1;
+        if ($lastNote) {
+            $lastNumber = (int)substr($lastNote->NoteID, 5);
+            $nextNumber = $lastNumber + 1;
         }
+
+        // Mã mới
+        $newId = 'PNOTE' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+
+        DB::statement('UNLOCK TABLES');
+
+        return $newId;
+    });
+}
+
+    public function store(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'PetID'     => 'required|exists:Pets,PetID',
+            'Content'   => 'required|string',
+            'CreatedAt' => 'required|date',
+            'ServiceID' => 'required|exists:Services,ServiceID',
+            'CreatedBy' => 'nullable|exists:Users,UserID'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $note = PetNotes::create([
+            'NoteID'     => $this->generateUniqueNoteID(),
+            'PetID'      => $request->PetID,
+            'Content'    => $request->Content,
+            'CreatedAt'  => $request->CreatedAt,
+            'ServiceID'  => $request->ServiceID,
+            'CreatedBy'  => $request->CreatedBy
+        ]); 
+
+
+        return response()->json(['message' => 'Note created', 'data' => $note], 201);
     }
 
-    function update(Request $request, $id)
+    public function updateService(Request $request)
     {
-        try {
-            $note = PetNotes::findOrFail($id);
-            $note->update($request->all());
+        $validator = Validator::make($request->all(), [
+            'PetID'     => 'required|exists:Pets,PetID',
+            'ServiceID' => 'required|exists:Services,ServiceID',
+        ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Cập nhật ghi chú thành công!',
-                'data' => $note
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Lỗi cập nhật: ' . $e->getMessage(),
-                'data' => null
-            ], 500);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
         }
-    }
 
-    function delete($id)
-    {
-        try {
-            $note = PetNotes::findOrFail($id);
-            $note->delete();
+        $note = PetNotes::where('PetID', $request->PetID)
+                        ->orderByDesc('CreatedAt')
+                        ->first();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Xóa ghi chú thành công!',
-                'data' => null
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Lỗi xóa: ' . $e->getMessage(),
-                'data' => null
-            ], 500);
+        if (!$note) {
+            return response()->json(['message' => 'No note found for this pet'], 404);
         }
+
+        $note->ServiceID = $request->ServiceID;
+        $note->save();
+
+        return response()->json(['message' => 'Service updated for pet note', 'data' => $note]);
     }
 }

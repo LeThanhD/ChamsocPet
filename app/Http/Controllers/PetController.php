@@ -2,76 +2,131 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Pet;
-use Illuminate\Support\Facades\Validator;
+use App\Models\PetNotes;
+use App\Models\Appointment;
+use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class PetController extends Controller
 {
-    public function getList(Request $request)
+    public function index(Request $request)
     {
-        $data = $request->all();
-        $data['search'] = $data['search'] ?? '';
-        $data['page'] = $data['page'] ?? 1;
+        $userId = $request->query('UserID');
 
-        try {
-            $list = Pet::where(function ($query) use ($data) {
-                $query->where("Name", "like", "%" . $data['search'] . "%")
-                      ->orWhere("Species", "like", "%" . $data['search'] . "%")
-                      ->orWhere("Breed", "like", "%" . $data['search'] . "%");
-            })
-            ->offset(($data['page'] - 1) * 10)
-            ->limit(10)
-            ->get();
-
-            return response()->json([
-                "success" => true,
-                "message" => "Lấy danh sách thú cưng thành công!",
-                "data" => $list
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                "success" => false,
-                "message" => "Không thể lấy danh sách thú cưng! " . $e->getMessage(),
-                "data" => []
-            ], 500);
+        if (!$userId) {
+            return response()->json(['error' => 'UserID is required'], 400);
         }
+
+        $pets = Pet::with(['latestNote', 'user'])->where('UserID', $userId)->get();
+
+        return response()->json($pets);
+    }
+
+    // 🚨 Thêm kiểm tra user hiện tại để đảm bảo chỉ xem pet của mình
+    public function getPetsByUser($userId)
+    {
+        $authUser = auth()->user(); // lấy user hiện tại từ token
+        if ($userId !== $authUser->UserID) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $pets = Pet::with(['latestNote', 'user'])->where('UserID', $userId)->get();
+        return response()->json($pets);
     }
 
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'Name' => 'required',
-            'Species' => 'required',
-            'Breed' => 'required',
-            'BirthDate' => 'nullable|date',
-            'Gender' => 'nullable|string|max:10',
-            'Weight' => 'nullable|numeric',
-            'FurColor' => 'nullable|string',
-            'UserID' => 'required|exists:users,UserID'
+        $validated = $request->validate([
+            'Name' => 'required|string',
+            'Gender' => 'required|string',
+            'FurColor' => 'required|string',
+            'Species' => 'required|string',
+            'Breed' => 'required|string',
+            'BirthDate' => 'required|date',
+            'Weight' => 'required|numeric',
+            'fur_type' => 'nullable|string',
+            'origin' => 'nullable|string',
+            'vaccinated' => 'nullable|boolean',
+            'last_vaccine_date' => 'nullable|date',
+            'trained' => 'nullable|boolean',
+            'HealthStatus' => 'nullable|string',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                "success" => false,
-                "message" => "Dữ liệu không hợp lệ!",
-                "errors" => $validator->errors()
-            ], 422);
+        $userId = auth()->user()->UserID; // Lấy user_id từ auth token
+
+        $prefix = strtoupper(substr(preg_replace('/[^A-Z0-9]/', '', $userId), 0, 8));
+        $suffix = strtoupper(preg_replace('/[^A-Z0-9]/', '', $validated['Name']));
+
+        $lastPet = Pet::where('PetID', 'like', "PET{$prefix}%")
+            ->orderByDesc('PetID')
+            ->first();
+
+        $nextNumber = 1;
+        if ($lastPet && preg_match('/PET' . $prefix . '(\d+)/', $lastPet->PetID, $matches)) {
+            $nextNumber = (int)$matches[1] + 1;
         }
 
-        try {
-            $pet = Pet::create($request->all());
-            return response()->json([
-                "success" => true,
-                "message" => "Thêm thú cưng thành công!",
-                "data" => $pet
+        $petId = 'PET' . $prefix . $nextNumber . $suffix;
+
+        $pet = Pet::create(array_merge(
+            $request->only([
+                'Name', 'Gender', 'FurColor', 'Species', 'Breed', 'BirthDate',
+                'Weight', 'fur_type', 'origin', 'vaccinated', 'last_vaccine_date', 'trained'
+            ]),
+            ['UserID' => $userId, 'PetID' => $petId] // Gán UserID từ auth
+        ));
+
+        if (!empty($validated['HealthStatus'])) {
+            PetNotes::create([
+                'NoteID' => 'PNOTE' . now()->format('YmdHisv'),
+                'PetID' => $petId,
+                'Content' => $validated['HealthStatus'],
+                'CreatedAt' => now(),
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                "success" => false,
-                "message" => "Không thể thêm thú cưng! " . $e->getMessage(),
-                "data" => []
-            ], 500);
         }
+
+        return response()->json($pet, 201);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $pet = Pet::find($id);
+        if (!$pet) {
+            return response()->json(['message' => 'Pet not found'], 404);
+        }
+
+        $authUser = auth()->user();
+        if ($pet->UserID !== $authUser->UserID) { // Kiểm tra xem pet có phải của user hiện tại không
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $pet->update($request->only([
+            'Name', 'Gender', 'FurColor', 'Species', 'Breed', 'BirthDate',
+            'Weight', 'fur_type', 'origin', 'vaccinated', 'last_vaccine_date', 'trained'
+        ]));
+
+        return response()->json($pet);
+    }
+
+    public function destroy($id)
+    {
+        $pet = Pet::find($id);
+        if (!$pet) {
+            return response()->json(['message' => 'Pet not found'], 404);
+        }
+
+        // Kiểm tra user có quyền xóa pet này không
+        $authUser = auth()->user();
+        if ($pet->UserID !== $authUser->UserID) { // Kiểm tra quyền sở hữu pet
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Xóa các bản ghi liên quan (appointments, notes)
+        Appointment::where('PetID', $id)->delete();
+        $pet->notes()->delete();
+        $pet->delete();
+
+        return response()->json(['message' => 'Pet deleted']);
     }
 }

@@ -1,18 +1,15 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Http\Request;
-
-// Controllers
 use App\Http\Controllers\UsersController;
 use App\Http\Controllers\PetController;
-use App\Http\Controllers\AppointmentHistoryController;
 use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\AppointmentHistoryController;
 use App\Http\Controllers\InvoicesController;
 use App\Http\Controllers\InvoiceDetailController;
 use App\Http\Controllers\MedicalHistoryController;
 use App\Http\Controllers\MedicalRecordsController;
-use App\Http\Controllers\MedicationController;
+use App\Http\Controllers\MedicationsController;
 use App\Http\Controllers\PetNotesController;
 use App\Http\Controllers\PrescriptionsController;
 use App\Http\Controllers\ServiceCategoriesController;
@@ -21,52 +18,77 @@ use App\Http\Controllers\UserLogsController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\PaymentController;
 
-// ✅ Public routes (không cần token)
-
+// 🔐 Đăng nhập
 Route::post('/login', [UsersController::class, 'login'])->name('login');
-Route::post('/users', [UsersController::class, 'store']);
 
-// ✅ Protected routes (cần token Sanctum)
+// 👤 Đăng ký & quản lý người dùng
+Route::prefix('/users')->controller(UsersController::class)->group(function () {
+    Route::post('/', 'store');
+    Route::get('/detail/{id}', 'getUserById');
+    Route::get('/{page?}/{search?}', 'getList');
+    Route::put('/{id}', 'update');
+    Route::delete('/{id}', 'destroy');
+});
 
-Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/user-profile', function (Request $request) {
-        return response()->json([
-            'message' => 'Dữ liệu bảo vệ thành công',
-            'user' => $request->user()
-        ]);
-    });
+Route::prefix('/appointments')->controller(AppointmentController::class)->group(function () {                    
+        Route::get('/all', 'index');  
+     });
+// 🌐 Dịch vụ chung (không cần auth)
+Route::prefix('/services')->controller(ServiceController::class)->group(function () {
+    Route::get('/all', 'index'); // cho mọi user
+    Route::get('/', 'getList');
+    Route::get('/{id}', 'getDetail');
+});
 
-    Route::post('/logout', [UsersController::class, 'logout']);
+// 🌐 Khách hàng hoặc nhân viên (phải đăng nhập)
+Route::middleware(['auth:sanctum'])->group(function () {
 
-    // 🧑‍💼 User routes (sau khi đăng nhập)
-    Route::prefix('/users')->controller(UsersController::class)->group(function () {
-        Route::get('/{page?}/{search?}', 'getList');   
-        Route::put('/{id}', 'update');                
-        Route::delete('/{id}', 'destroy');          
-    });
-
-    // 🐶 Pet routes
+    // 🐾 Pets - khách hàng
     Route::prefix('/pets')->controller(PetController::class)->group(function () {
-        Route::get('/list', 'getList');
-        Route::post('/create', 'store');
+        Route::get('/', 'index'); 
+        Route::get('/user/{userId}', 'getPetsByUser'); // khách lấy theo ID của mình
+        Route::post('/', 'store'); // kiểm tra từ auth()->user()
     });
 
-    // 📅 Appointment history routes
+    // 📅 Appointments - khách hàng
+    Route::prefix('/appointments')->controller(AppointmentController::class)->group(function () {
+        Route::post('/', 'store');                               
+        Route::put('/{id}', 'update');// cập nhật
+        Route::delete('/{id}', 'destroy'); // xoá thú cưng + lịch hẹn                  
+    });
+
+    // 💊 Medications - khách hàng chỉ xem
+    Route::prefix('/medications')->controller(MedicationsController::class)->group(function () {
+        Route::get('/', 'getList');
+        Route::get('/{id}', 'getDetail');
+    });
+});
+
+// 👨‍⚕️ Nhân viên
+Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
+
+    // 🐾 Pets - full quyền
+    Route::prefix('/pets')->controller(PetController::class)->group(function () {
+        Route::get('/', 'index');     // full list
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'destroy');
+    });
+
+    // 📅 Lịch sử lịch hẹn
     Route::prefix('/appointment-history')->controller(AppointmentHistoryController::class)->group(function () {
         Route::post('/', 'store');
         Route::put('/{id}', 'update');
         Route::delete('/{id}', 'destroy');
     });
 
-    // 🗓 Appointment routes
+    // 📅 Appointments - staff
     Route::prefix('/appointments')->controller(AppointmentController::class)->group(function () {
-        Route::get('/', 'index');
-        Route::post('/', 'store');
+        Route::get('/', 'index');        // xem tất cả
         Route::put('/{id}', 'update');
         Route::delete('/{id}', 'destroy');
     });
 
-    // 🧾 Invoice routes
+    // 💰 Hóa đơn
     Route::prefix('/invoices')->controller(InvoicesController::class)->group(function () {
         Route::get('/', 'index');
         Route::post('/', 'store');
@@ -74,7 +96,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', 'destroy');
     });
 
-    // 🧾 Invoice detail routes
     Route::prefix('/invoice-details')->controller(InvoiceDetailController::class)->group(function () {
         Route::get('/', 'index');
         Route::post('/', 'store');
@@ -82,7 +103,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', 'destroy');
     });
 
-    // 📖 Medical history
+    // 🏥 Lịch sử khám bệnh
     Route::prefix('/medical-histories')->controller(MedicalHistoryController::class)->group(function () {
         Route::get('/', 'index');
         Route::post('/', 'store');
@@ -90,7 +111,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', 'destroy');
     });
 
-    // 📋 Medical records
+    // 📋 Hồ sơ bệnh án
     Route::prefix('/medical-records')->controller(MedicalRecordsController::class)->group(function () {
         Route::get('/', 'getList');
         Route::get('/{id}', 'getDetail');
@@ -99,25 +120,22 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', 'delete');
     });
 
-    // 💊 Medications
-    Route::prefix('/medications')->controller(MedicationController::class)->group(function () {
-        Route::get('/', 'getList');
-        Route::get('/{id}', 'getDetail');
+    // 💊 Thuốc - thêm sửa xóa
+    Route::prefix('/medications')->controller(MedicationsController::class)->group(function () {
         Route::post('/', 'create');
         Route::put('/{id}', 'update');
         Route::delete('/{id}', 'delete');
     });
 
-    // 📒 Pet notes
+    // 📝 Ghi chú thú cưng
     Route::prefix('/pet-notes')->controller(PetNotesController::class)->group(function () {
         Route::get('/', 'getList');
         Route::get('/{id}', 'getDetail');
-        Route::post('/', 'create');
-        Route::put('/{id}', 'update');
-        Route::delete('/{id}', 'delete');
+        Route::post('/', 'store');
+        Route::put('/update-service', 'updateService');
     });
 
-    // 💊 Prescriptions
+    // 📃 Đơn thuốc
     Route::prefix('/prescriptions')->controller(PrescriptionsController::class)->group(function () {
         Route::get('/', 'getList');
         Route::get('/{id}', 'getDetail');
@@ -126,7 +144,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', 'delete');
     });
 
-    // 🧾 Service Categories
+    // 📂 Danh mục dịch vụ
     Route::prefix('/service-categories')->controller(ServiceCategoriesController::class)->group(function () {
         Route::get('/', 'getList');
         Route::get('/{id}', 'getDetail');
@@ -135,16 +153,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', 'delete');
     });
 
-    // 💼 Services
+    // 🛠️ Dịch vụ
     Route::prefix('/services')->controller(ServiceController::class)->group(function () {
-        Route::get('/', 'getList');
-        Route::get('/{id}', 'getDetail');
         Route::post('/', 'create');
         Route::put('/{id}', 'update');
         Route::delete('/{id}', 'delete');
     });
 
-    // 📓 User Logs
+    // 🧾 Nhật ký người dùng
     Route::prefix('/user-logs')->controller(UserLogsController::class)->group(function () {
         Route::get('/', 'getList');
         Route::get('/{id}', 'getDetail');
@@ -153,7 +169,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', 'delete');
     });
 
-    // 💳 Payment Methods
+    // 💳 Phương thức thanh toán
     Route::prefix('/payment-methods')->controller(PaymentMethodController::class)->group(function () {
         Route::get('/', 'index');
         Route::post('/', 'store');
@@ -161,7 +177,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', 'destroy');
     });
 
-    // 💰 Payments
+    // 💵 Thanh toán
     Route::prefix('/payments')->controller(PaymentController::class)->group(function () {
         Route::get('/', 'index');
         Route::post('/', 'store');

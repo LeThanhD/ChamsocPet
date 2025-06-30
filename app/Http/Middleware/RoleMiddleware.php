@@ -17,9 +17,9 @@ class RoleMiddleware
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        // Không có vai trò phù hợp
-        if (!in_array($user->role, $roles)) {
-            return response()->json(['message' => 'Forbidden'], 403);
+        // Kiểm tra vai trò hợp lệ
+        if (!in_array(strtolower($user->Role), array_map('strtolower', $roles))) {
+            return response()->json(['message' => 'Bạn không có quyền!'], 403);
         }
 
         return $next($request);

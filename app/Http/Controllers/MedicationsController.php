@@ -2,24 +2,23 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use App\Models\Medications;
 
 class MedicationsController extends Controller
 {
-    // Lấy danh sách thuốc với tìm kiếm + phân trang
+    // ✅ Lấy danh sách thuốc với tìm kiếm + phân trang
     public function getList(Request $request)
     {
-        // Khách hàng có thể tìm kiếm thuốc và xem danh sách thuốc
-        $data = $request->all();
-        $data['search'] = $data['search'] ?? '';
-        $data['page'] = $data['page'] ?? 1;
+        $data['search'] = $request->input('search', '');
+        $data['page'] = $request->input('page', 1);
 
         try {
             $list = Medications::where('Name', 'like', '%' . $data['search'] . '%')
                 ->offset(($data['page'] - 1) * 10)
                 ->limit(10)
-                ->get(['Name', 'Price', 'ImageURL', 'UsageInstructions']);
+                ->get(['MedicationID', 'Name', 'Price', 'ImageURL', 'UsageInstructions']);
 
             return response()->json([
                 'success' => true,
@@ -35,13 +34,12 @@ class MedicationsController extends Controller
         }
     }
 
-
-    // Lấy chi tiết thuốc theo ID
-    // Lấy chi tiết thuốc cho khách hàng
+    // ✅ Lấy chi tiết thuốc theo ID
     public function getDetail($id)
     {
         try {
-            $item = Medications::findOrFail($id);  // Tìm thuốc theo ID
+            $item = Medications::where('MedicationID', $id)->firstOrFail();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Lấy thông tin thuốc thành công!',
@@ -56,7 +54,7 @@ class MedicationsController extends Controller
         }
     }
 
-    // Tạo thuốc mới
+    // ✅ Tạo thuốc mới
     public function create(Request $request)
     {
         try {
@@ -98,45 +96,53 @@ class MedicationsController extends Controller
         }
     }
 
-    // Cập nhật thuốc
+    // ✅ Cập nhật thuốc
     public function update(Request $request, $id)
     {
-        try {
-            $medication = Medications::findOrFail($id);
-            $medication->update($request->all());
+        $medicine = Medications::where('MedicationID', $id)->first();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Cập nhật thuốc thành công!',
-                'data' => $medication
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Lỗi cập nhật: ' . $e->getMessage(),
-                'data' => null
-            ], 500);
+        if (!$medicine) {
+            return response()->json(['message' => 'Không tìm thấy thuốc'], 404);
         }
+
+        $medicine->update([
+            'Name' => $request->input('Name'),
+            'Price' => $request->input('Price'),
+            'UsageInstructions' => $request->input('UsageInstructions'),
+            'ImageURL' => $request->input('ImageURL'),
+        ]);
+
+        return response()->json([
+            'message' => 'Cập nhật thành công',
+            'data' => $medicine
+        ], 200);
     }
 
-    // Xóa thuốc
-    public function delete($id)
+    // ✅ Xóa thuốc
+    public function delete($id, Request $request)
     {
+        $role = $request->header('Role');
+
+        if ($role !== 'staff') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn không có quyền xóa thuốc.',
+            ], 403);
+        }
+
         try {
-            $medication = Medications::findOrFail($id);
+            $medication = Medications::where('MedicationID', $id)->firstOrFail();
             $medication->delete();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Xóa thuốc thành công!',
-                'data' => null
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Lỗi xóa thuốc: ' . $e->getMessage(),
-                'data' => null
-            ], 500);
+            ], 404);
         }
     }
 }

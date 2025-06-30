@@ -17,9 +17,11 @@ use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\UserLogsController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\NotificationController;
 
 // 🔐 Đăng nhập
 Route::post('/login', [UsersController::class, 'login'])->name('login');
+Route::post('/logout', [UsersController::class, 'logout']);
 
 // 👤 Đăng ký & quản lý người dùng
 Route::prefix('/users')->controller(UsersController::class)->group(function () {
@@ -28,36 +30,72 @@ Route::prefix('/users')->controller(UsersController::class)->group(function () {
     Route::get('/{page?}/{search?}', 'getList');
     Route::put('/{id}', 'update');
     Route::delete('/{id}', 'destroy');
+    Route::post('/send-reset-code', 'sendResetCode');
+    Route::post('/reset-password', 'resetPassword');
+    Route::post('/force-reset-password', 'forceResetPassword');
+    Route::get('/staff',  'index');
+
 });
 
-Route::prefix('/appointments')->controller(AppointmentController::class)->group(function () {                    
-        Route::get('/all', 'index');  
-     });
-// 🌐 Dịch vụ chung (không cần auth)
+Route::prefix('/appointments')->controller(AppointmentController::class)->group(function () {
+    Route::get('/every', 'getAllAppointmentsForStaff');
+    Route::get('/all', 'index');
+    Route::post('/', 'store');
+    Route::put('/{id}', 'update');
+    Route::put('/update-status/{id}', 'updateStatus');
+    Route::delete('/{id}', 'destroy');
+    Route::get('/check', 'checkConflict');
+    Route::get('/check-all', 'getBookedTimes');
+
+});
+
+// 🌐 Dịch vụ chung
 Route::prefix('/services')->controller(ServiceController::class)->group(function () {
-    Route::get('/all', 'index'); // cho mọi user
+    Route::get('/all', 'index');
     Route::get('/', 'getList');
     Route::get('/{id}', 'getDetail');
+    Route::post('/', 'create');
 });
 
-// 🌐 Khách hàng hoặc nhân viên (phải đăng nhập)
+Route::prefix('/pet-notes')->controller(PetNotesController::class)->group(function () {
+    Route::delete('/{id}', 'destroy');
+});
+
+Route::prefix('/medications')->controller(MedicationsController::class)->group(function () {
+    Route::post('/', 'create');
+    Route::delete('/{id}', 'delete');
+    Route::put('/{id}', 'update');
+});
+
+Route::prefix('/pets')->controller(PetController::class)->group(function () {
+    Route::get('/all', 'getAllPetsForStaff');
+    Route::delete('/{id}', 'destroy');
+    Route::put('/{id}', 'update');
+});
+
+ Route::prefix('/notifications')->controller(NotificationController::class)->group(function () {
+        Route::get('/', 'index');
+        Route::put('/{id}/read', 'markAsRead');
+        Route::delete('/{id}', 'destroy');
+    });
+
+Route::prefix('/appointment-history')->controller(AppointmentHistoryController::class)->group(function () {
+    Route::get('/all', 'getAllHistories');
+    Route::get('/', 'getUserHistories');
+    Route::post('/', 'store');
+    Route::put('/{id}', 'update');
+    Route::delete('/{id}', 'destroy');
+});
+
+// ✨ Khách hàng hoặc nhân viên (auth)
 Route::middleware(['auth:sanctum'])->group(function () {
 
-    // 🐾 Pets - khách hàng
     Route::prefix('/pets')->controller(PetController::class)->group(function () {
-        Route::get('/', 'index'); 
-        Route::get('/user/{userId}', 'getPetsByUser'); // khách lấy theo ID của mình
-        Route::post('/', 'store'); // kiểm tra từ auth()->user()
+        Route::get('/', 'index');
+        Route::get('/user/{userId}', 'getPetsByUser');
+        Route::post('/', 'store');
     });
 
-    // 📅 Appointments - khách hàng
-    Route::prefix('/appointments')->controller(AppointmentController::class)->group(function () {
-        Route::post('/', 'store');                               
-        Route::put('/{id}', 'update');// cập nhật
-        Route::delete('/{id}', 'destroy'); // xoá thú cưng + lịch hẹn                  
-    });
-
-    // 💊 Medications - khách hàng chỉ xem
     Route::prefix('/medications')->controller(MedicationsController::class)->group(function () {
         Route::get('/', 'getList');
         Route::get('/{id}', 'getDetail');
@@ -66,34 +104,37 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 // 👨‍⚕️ Nhân viên
 Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
-
-    // 🐾 Pets - full quyền
-    Route::prefix('/pets')->controller(PetController::class)->group(function () {
-        Route::get('/', 'index');     // full list
-        Route::put('/{id}', 'update');
-        Route::delete('/{id}', 'destroy');
-    });
-
-    // 📅 Lịch sử lịch hẹn
-    Route::prefix('/appointment-history')->controller(AppointmentHistoryController::class)->group(function () {
+    Route::prefix('/notifications')->controller(NotificationController::class)->group(function () {
         Route::post('/', 'store');
-        Route::put('/{id}', 'update');
-        Route::delete('/{id}', 'destroy');
     });
 
-    // 📅 Appointments - staff
+    Route::prefix('/medications')->controller(MedicationsController::class)->group(function () {
+        Route::put('/{id}', 'update');
+    });
+
+    Route::prefix('/services')->controller(ServiceController::class)->group(function () {
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'delete');
+    });
+
+    Route::prefix('/pets')->controller(PetController::class)->group(function () {
+        Route::get('/', 'index');
+    });
+
     Route::prefix('/appointments')->controller(AppointmentController::class)->group(function () {
-        Route::get('/', 'index');        // xem tất cả
+        Route::get('/', 'index');
         Route::put('/{id}', 'update');
         Route::delete('/{id}', 'destroy');
+        Route::put('/end/{id}', 'endAppointment');
     });
 
-    // 💰 Hóa đơn
     Route::prefix('/invoices')->controller(InvoicesController::class)->group(function () {
         Route::get('/', 'index');
         Route::post('/', 'store');
         Route::put('/{id}', 'update');
         Route::delete('/{id}', 'destroy');
+        Route::get('/by-user', 'getByUser');
+        Route::get('/{id}', 'show');
     });
 
     Route::prefix('/invoice-details')->controller(InvoiceDetailController::class)->group(function () {
@@ -103,7 +144,6 @@ Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
         Route::delete('/{id}', 'destroy');
     });
 
-    // 🏥 Lịch sử khám bệnh
     Route::prefix('/medical-histories')->controller(MedicalHistoryController::class)->group(function () {
         Route::get('/', 'index');
         Route::post('/', 'store');
@@ -111,7 +151,6 @@ Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
         Route::delete('/{id}', 'destroy');
     });
 
-    // 📋 Hồ sơ bệnh án
     Route::prefix('/medical-records')->controller(MedicalRecordsController::class)->group(function () {
         Route::get('/', 'getList');
         Route::get('/{id}', 'getDetail');
@@ -120,14 +159,6 @@ Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
         Route::delete('/{id}', 'delete');
     });
 
-    // 💊 Thuốc - thêm sửa xóa
-    Route::prefix('/medications')->controller(MedicationsController::class)->group(function () {
-        Route::post('/', 'create');
-        Route::put('/{id}', 'update');
-        Route::delete('/{id}', 'delete');
-    });
-
-    // 📝 Ghi chú thú cưng
     Route::prefix('/pet-notes')->controller(PetNotesController::class)->group(function () {
         Route::get('/', 'getList');
         Route::get('/{id}', 'getDetail');
@@ -135,7 +166,6 @@ Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
         Route::put('/update-service', 'updateService');
     });
 
-    // 📃 Đơn thuốc
     Route::prefix('/prescriptions')->controller(PrescriptionsController::class)->group(function () {
         Route::get('/', 'getList');
         Route::get('/{id}', 'getDetail');
@@ -144,7 +174,6 @@ Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
         Route::delete('/{id}', 'delete');
     });
 
-    // 📂 Danh mục dịch vụ
     Route::prefix('/service-categories')->controller(ServiceCategoriesController::class)->group(function () {
         Route::get('/', 'getList');
         Route::get('/{id}', 'getDetail');
@@ -153,14 +182,6 @@ Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
         Route::delete('/{id}', 'delete');
     });
 
-    // 🛠️ Dịch vụ
-    Route::prefix('/services')->controller(ServiceController::class)->group(function () {
-        Route::post('/', 'create');
-        Route::put('/{id}', 'update');
-        Route::delete('/{id}', 'delete');
-    });
-
-    // 🧾 Nhật ký người dùng
     Route::prefix('/user-logs')->controller(UserLogsController::class)->group(function () {
         Route::get('/', 'getList');
         Route::get('/{id}', 'getDetail');
@@ -169,7 +190,6 @@ Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
         Route::delete('/{id}', 'delete');
     });
 
-    // 💳 Phương thức thanh toán
     Route::prefix('/payment-methods')->controller(PaymentMethodController::class)->group(function () {
         Route::get('/', 'index');
         Route::post('/', 'store');
@@ -177,7 +197,6 @@ Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
         Route::delete('/{id}', 'destroy');
     });
 
-    // 💵 Thanh toán
     Route::prefix('/payments')->controller(PaymentController::class)->group(function () {
         Route::get('/', 'index');
         Route::post('/', 'store');

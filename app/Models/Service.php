@@ -13,9 +13,10 @@ class Service extends Model
     protected $primaryKey = 'ServiceID';
     public $incrementing = false;  // Khóa chính không tự động tăng
     protected $keyType = 'string'; // Xác định kiểu khóa chính là string (do ServiceID là chuỗi)
-    
+    public $timestamps = false;
     // Các trường có thể gán giá trị
     protected $fillable = [
+        'ServiceID',
         'ServiceName',
         'Description',
         'Price',

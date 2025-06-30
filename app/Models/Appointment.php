@@ -7,13 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 use App\Models\Users;
 use App\Models\Service;
 use App\Models\Pet;
+use App\Models\AppointmentHistory;
 
 class Appointment extends Model
 {
     use HasFactory;
 
     protected $table = 'appointments';
-
     protected $primaryKey = 'AppointmentID';
     public $incrementing = false;
     public $timestamps = false;
@@ -27,25 +27,51 @@ class Appointment extends Model
         'AppointmentTime',
         'Reason',
         'Status',
+        'StaffID',
     ];
 
-    // ✅ Quan hệ đến Users trả về FullName
+    protected $casts = [
+    'AppointmentDate' => 'date',
+    'AppointmentTime' => 'datetime:H:i:s',
+];
+
+
+    // ✅ Quan hệ đến chủ thú cưng
     public function user()
     {
         return $this->belongsTo(Users::class, 'UserID', 'UserID')
                     ->select(['UserID', 'FullName']);
     }
 
-    // ✅ Quan hệ đến Pets trả về Name
+    // ✅ Quan hệ đến thú cưng
     public function pet()
     {
         return $this->belongsTo(Pet::class, 'PetID', 'PetID')
                     ->select(['PetID', 'Name']);
     }
 
-    // ✅ Quan hệ đến Service giữ nguyên
+    // ✅ Quan hệ đến dịch vụ
     public function service()
     {
         return $this->belongsTo(Service::class, 'ServiceID', 'ServiceID');
+    }
+
+    // ✅ Quan hệ đến lịch sử cuộc hẹn
+    public function histories()
+    {
+        return $this->hasMany(AppointmentHistory::class, 'AppointmentID', 'AppointmentID');
+    }
+
+    // ✅ Quan hệ đến nhân viên phụ trách
+    public function staff()
+    {
+        return $this->belongsTo(Users::class, 'StaffID', 'UserID')
+                    ->select(['UserID', 'FullName']);
+    }
+
+    // ✅ Scope để lọc các cuộc hẹn đang chờ xử lý
+    public function scopePending($query)
+    {
+        return $query->where('Status', 'pending');
     }
 }

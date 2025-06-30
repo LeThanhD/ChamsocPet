@@ -15,5 +15,21 @@ class Invoices extends Model
         'PetID',
         'CreatedAt',
         'TotalAmount',
+        'AppointmentID',
+        'ServicePrice',
+        'MedicineTotal',
     ];
+
+    public function appointment()
+    {
+        return $this->belongsTo(Appointment::class, 'AppointmentID', 'AppointmentID');
+    }
+
+    public function medicines()
+    {
+        return $this->hasMany(InvoiceMedicine::class, 'InvoiceID', 'InvoiceID');
+    }
+
+
 }
+

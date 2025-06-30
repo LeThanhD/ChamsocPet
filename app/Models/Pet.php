@@ -55,5 +55,6 @@ class Pet extends Model
     public function user()
     {
         return $this->belongsTo(Users::class, 'UserID', 'UserID');
+        
     }
 }

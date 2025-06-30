@@ -23,37 +23,23 @@ class PetNotesController extends Controller
         return response()->json($note);
     }
 
-    private function generateUniqueNoteID()
-{
-    return DB::transaction(function () {
-        // Lock table để tránh tạo trùng trong quá trình song song
-        DB::statement('LOCK TABLES PetNotes WRITE');
+        private function generateUniqueNoteID()
+    {
+        do {
+            $randomString = strtoupper(Str::random(6)); // Tạo chuỗi ngẫu nhiên 6 ký tự
+            $noteId = 'PNOTE' . $randomString;
+        } while (PetNotes::where('NoteID', $noteId)->exists());
 
-        // Lấy bản ghi có NoteID cao nhất
-        $lastNote = PetNotes::orderByDesc(DB::raw('CAST(SUBSTRING(NoteID, 6) AS UNSIGNED)'))->first();
+        return $noteId;
+    }
 
-        $nextNumber = 1;
-        if ($lastNote) {
-            $lastNumber = (int)substr($lastNote->NoteID, 5);
-            $nextNumber = $lastNumber + 1;
-        }
-
-        // Mã mới
-        $newId = 'PNOTE' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
-
-        DB::statement('UNLOCK TABLES');
-
-        return $newId;
-    });
-}
-
-    public function store(Request $request)
+        public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'PetID'     => 'required|exists:Pets,PetID',
             'Content'   => 'required|string',
-            'CreatedAt' => 'required|date',
-            'ServiceID' => 'required|exists:Services,ServiceID',
+            'ServiceID' => 'nullable|exists:Services,ServiceID',
+            'CreatedAt' => 'nullable|date',
             'CreatedBy' => 'nullable|exists:Users,UserID'
         ]);
 
@@ -65,13 +51,15 @@ class PetNotesController extends Controller
             'NoteID'     => $this->generateUniqueNoteID(),
             'PetID'      => $request->PetID,
             'Content'    => $request->Content,
-            'CreatedAt'  => $request->CreatedAt,
-            'ServiceID'  => $request->ServiceID,
-            'CreatedBy'  => $request->CreatedBy
-        ]); 
+            'ServiceID'  => $request->ServiceID ?? null,
+            'CreatedAt'  => $request->CreatedAt ?? now(),
+            'CreatedBy'  => $request->CreatedBy ?? auth()->id()
+        ]);
 
-
-        return response()->json(['message' => 'Note created', 'data' => $note], 201);
+        return response()->json([
+            'message' => 'Note created',
+            'data' => $note
+        ], 201);
     }
 
     public function updateService(Request $request)
@@ -98,4 +86,17 @@ class PetNotesController extends Controller
 
         return response()->json(['message' => 'Service updated for pet note', 'data' => $note]);
     }
+    public function destroy($id)
+{
+    $note = PetNotes::find($id);
+
+    if (!$note) {
+        return response()->json(['message' => 'Note not found'], 404);
+    }
+
+    $note->delete();
+
+    return response()->json(['message' => 'Note deleted successfully'], 200);
+}
+
 }

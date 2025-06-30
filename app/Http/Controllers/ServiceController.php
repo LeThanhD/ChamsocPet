@@ -42,7 +42,7 @@ class ServiceController extends Controller
         try {
             // Tìm kiếm và phân trang dịch vụ
             $services = Service::where('ServiceName', 'like', '%' . $data['search'] . '%')
-                ->paginate(10);  // Phân trang với 10 kết quả mỗi trang
+                ->paginate(10);
 
             return response()->json([
                 'success' => true,
@@ -77,8 +77,8 @@ class ServiceController extends Controller
         }
     }
 
-    // ✅ Thêm mới dịch vụ
-    public function create(Request $request)
+        // ✅ Thêm mới dịch vụ
+        public function create(Request $request)
     {
         try {
             $request->validate([
@@ -88,7 +88,28 @@ class ServiceController extends Controller
                 'CategoryID' => 'required|string|exists:servicecategories,CategoryID',
             ]);
 
+            // ✅ Xác định prefix dựa vào loại dịch vụ
+            $prefix = strtoupper($request->CategoryID) === 'DOG' ? 'SV_C' : 'SV_M';
+
+            // ✅ Lấy ServiceID gần nhất theo Category
+            $lastService = Service::where('ServiceID', 'like', $prefix . '%')
+                ->orderByDesc('ServiceID')
+                ->first();
+
+            // ✅ Tăng số thứ tự
+            $nextNumber = 1;
+            if ($lastService) {
+                // Tách số cuối cùng trong ID, ví dụ từ SV_C005 => 5
+                $lastNumber = intval(substr($lastService->ServiceID, strlen($prefix)));
+                $nextNumber = $lastNumber + 1;
+            }
+
+            // ✅ Format lại ServiceID mới
+            $newServiceID = $prefix . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);  // => SV_C006
+
+            // ✅ Tạo mới dịch vụ
             $service = Service::create([
+                'ServiceID' => $newServiceID,
                 'ServiceName' => $request->ServiceName,
                 'Description' => $request->Description,
                 'Price' => $request->Price,
@@ -100,6 +121,7 @@ class ServiceController extends Controller
                 'message' => 'Tạo dịch vụ thành công!',
                 'data' => $service
             ], 201);
+
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -113,30 +135,35 @@ class ServiceController extends Controller
     public function update(Request $request, $id)
     {
         try {
-            $service = Service::findOrFail($id);
+            // tìm theo chuỗi ID, ví dụ "SV_C001"
+            $service = Service::where('ServiceID', $id)->firstOrFail();
 
             $request->validate([
-                'ServiceName' => 'sometimes|string|max:100',
+                'ServiceName' => 'required|string|max:255',
+                'Price' => 'required|numeric|min:0',
                 'Description' => 'nullable|string',
-                'Price' => 'sometimes|numeric',
-                'CategoryID' => 'sometimes|string|exists:servicecategories,CategoryID',
+                'CategoryID' => 'required|string',
             ]);
 
-            $service->update($request->all());
+            $service->ServiceName = $request->ServiceName;
+            $service->Price = $request->Price;
+            $service->Description = $request->Description;
+            $service->CategoryID = $request->CategoryID;
+
+            $service->save();
 
             return response()->json([
-                'success' => true,
-                'message' => 'Cập nhật dịch vụ thành công!',
+                'message' => 'Cập nhật thành công',
                 'data' => $service
-            ]);
+            ], 200);
         } catch (\Exception $e) {
             return response()->json([
-                'success' => false,
-                'message' => 'Lỗi cập nhật: ' . $e->getMessage(),
-                'data' => null
+                'message' => 'Cập nhật thất bại',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
+
 
     // ✅ Xoá dịch vụ
     public function delete($id)

@@ -45,6 +45,12 @@ class PetNotes extends Model
         return $this->belongsTo(User::class, 'CreatedBy', 'UserID');
     }
 
+    // Pet.php
+    public function latest_note()
+    {
+        return $this->hasOne(PetNotes::class, 'PetID', 'PetID')->latestOfMany();
+    }
+
     public function service()
     {
         return $this->belongsTo(Service::class, 'ServiceID', 'ServiceID');

@@ -6,7 +6,6 @@ use App\Models\Pet;
 use App\Models\PetNotes;
 use App\Models\Appointment;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 
 class PetController extends Controller
 {
@@ -19,114 +18,182 @@ class PetController extends Controller
         }
 
         $pets = Pet::with(['latestNote', 'user'])->where('UserID', $userId)->get();
-
         return response()->json($pets);
     }
 
-    // 🚨 Thêm kiểm tra user hiện tại để đảm bảo chỉ xem pet của mình
-    public function getPetsByUser($userId)
+    // Lấy thú cưng của user cụ thể (chỉ chính chủ mới xem được)
+    public function getPetsByUser(Request $request, $userId)
     {
-        $authUser = auth()->user(); // lấy user hiện tại từ token
+        $authUser = auth()->user();
         if ($userId !== $authUser->UserID) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $pets = Pet::with(['latestNote', 'user'])->where('UserID', $userId)->get();
+        $search = $request->query('search');
+        $query = Pet::with(['latestNote', 'user'])->where('UserID', $userId);
+
+        if ($search) {
+            $query->where('Name', 'like', "%$search%");
+        }
+
+        return response()->json($query->get());
+    }
+
+
+    // ✅ Staff được xem toàn bộ thú cưng của mọi người, kèm tên chủ và phân trang
+    public function getAllPetsForStaff(Request $request)
+    {
+        $role = $request->query('role');
+        $search = $request->query('search'); // Lấy từ query string nếu có
+
+        if ($role !== 'staff') {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $query = Pet::with(['latestNote', 'user:UserID,FullName']);
+
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('Name', 'like', '%' . $search . '%')
+                ->orWhereHas('user', function ($uq) use ($search) {
+                    $uq->where('FullName', 'like', '%' . $search . '%');
+                });
+            });
+        }
+
+        $pets = $query->paginate(10);
+
         return response()->json($pets);
     }
 
+
     public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'Name' => 'required|string',
-            'Gender' => 'required|string',
-            'FurColor' => 'required|string',
-            'Species' => 'required|string',
-            'Breed' => 'required|string',
-            'BirthDate' => 'required|date',
-            'Weight' => 'required|numeric',
-            'fur_type' => 'nullable|string',
-            'origin' => 'nullable|string',
-            'vaccinated' => 'nullable|boolean',
-            'last_vaccine_date' => 'nullable|date',
-            'trained' => 'nullable|boolean',
-            'HealthStatus' => 'nullable|string',
+{
+    $validated = $request->validate([
+        'Name' => 'required|string',
+        'Gender' => 'required|string',
+        'FurColor' => 'required|string',
+        'Species' => 'required|string',
+        'Breed' => 'required|string',
+        'BirthDate' => 'required|date',
+        'Weight' => 'required|numeric',
+        'fur_type' => 'nullable|string',
+        'origin' => 'nullable|string',
+        'vaccinated' => 'nullable|boolean',
+        'last_vaccine_date' => 'nullable|date',
+        'trained' => 'nullable|boolean',
+        'HealthStatus' => 'nullable|string',
+    ]);
+
+    $userId = auth()->user()->UserID;
+
+    // ✅ Tạo prefix từ UserID (6 ký tự in hoa không đặc biệt)
+    $prefix = strtoupper(substr(preg_replace('/[^A-Z0-9]/', '', $userId), 0, 6));
+
+    // ✅ Tạo chuỗi duy nhất từ thời gian: Hisv (giờ, phút, giây, mili)
+    $unique = now()->format('Hisv'); // Ex: 154523678
+
+    // ✅ Tạo PetID mới, đảm bảo không bao giờ trùng
+    $petId = 'PET' . $prefix . $unique;
+
+    // ✅ Tạo bản ghi thú cưng
+    $pet = Pet::create(array_merge(
+        $request->only([
+            'Name', 'Gender', 'FurColor', 'Species', 'Breed', 'BirthDate',
+            'Weight', 'fur_type', 'origin', 'vaccinated', 'last_vaccine_date', 'trained'
+        ]),
+        ['UserID' => $userId, 'PetID' => $petId]
+    ));
+
+    // ✅ Nếu có ghi chú tình trạng sức khoẻ
+    if (!empty($validated['HealthStatus'])) {
+        PetNotes::create([
+            'NoteID' => 'PNOTE' . now()->format('YmdHisv'),
+            'PetID' => $petId,
+            'Content' => $validated['HealthStatus'],
+            'CreatedAt' => now(),
         ]);
+    }
 
-        $userId = auth()->user()->UserID; // Lấy user_id từ auth token
+    return response()->json($pet, 201);
+}
 
-        $prefix = strtoupper(substr(preg_replace('/[^A-Z0-9]/', '', $userId), 0, 8));
-        $suffix = strtoupper(preg_replace('/[^A-Z0-9]/', '', $validated['Name']));
 
-        $lastPet = Pet::where('PetID', 'like', "PET{$prefix}%")
-            ->orderByDesc('PetID')
-            ->first();
+    public function update(Request $request, $petId)
+{
+    $pet = Pet::where('PetID', $petId)->first();
+    if (!$pet) {
+        return response()->json(['message' => 'Pet not found'], 404);
+    }
 
-        $nextNumber = 1;
-        if ($lastPet && preg_match('/PET' . $prefix . '(\d+)/', $lastPet->PetID, $matches)) {
-            $nextNumber = (int)$matches[1] + 1;
-        }
+    $validated = $request->validate([
+        'Name' => 'required|string',
+        'Gender' => 'required|string',
+        'FurColor' => 'required|string',
+        'Species' => 'required|string',
+        'Breed' => 'required|string',
+        'BirthDate' => 'required|date',
+        'Weight' => 'required|numeric',
+        'fur_type' => 'nullable|string',
+        'origin' => 'nullable|string',
+        'vaccinated' => 'nullable|boolean',
+        'last_vaccine_date' => 'nullable|date',
+        'trained' => 'nullable|boolean',
+        'HealthStatus' => 'nullable|string',
+    ]);
 
-        $petId = 'PET' . $prefix . $nextNumber . $suffix;
+    $pet->update($request->only([
+        'Name', 'Gender', 'FurColor', 'Species', 'Breed', 'BirthDate',
+        'Weight', 'fur_type', 'origin', 'vaccinated', 'last_vaccine_date', 'trained'
+    ]));
 
-        $pet = Pet::create(array_merge(
-            $request->only([
-                'Name', 'Gender', 'FurColor', 'Species', 'Breed', 'BirthDate',
-                'Weight', 'fur_type', 'origin', 'vaccinated', 'last_vaccine_date', 'trained'
-            ]),
-            ['UserID' => $userId, 'PetID' => $petId] // Gán UserID từ auth
-        ));
-
-        if (!empty($validated['HealthStatus'])) {
+    // ✅ Cập nhật ghi chú sức khỏe nếu có
+    if (!empty($validated['HealthStatus'])) {
+        $note = $pet->notes()->latest()->first();
+        if ($note) {
+            $note->update(['Content' => $validated['HealthStatus']]);
+        } else {
             PetNotes::create([
                 'NoteID' => 'PNOTE' . now()->format('YmdHisv'),
-                'PetID' => $petId,
+                'PetID' => $pet->PetID,
                 'Content' => $validated['HealthStatus'],
                 'CreatedAt' => now(),
             ]);
         }
-
-        return response()->json($pet, 201);
     }
 
-    public function update(Request $request, $id)
-    {
-        $pet = Pet::find($id);
-        if (!$pet) {
-            return response()->json(['message' => 'Pet not found'], 404);
-        }
+    return response()->json(['message' => 'Cập nhật thành công', 'pet' => $pet]);
+}
 
-        $authUser = auth()->user();
-        if ($pet->UserID !== $authUser->UserID) { // Kiểm tra xem pet có phải của user hiện tại không
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
-        $pet->update($request->only([
-            'Name', 'Gender', 'FurColor', 'Species', 'Breed', 'BirthDate',
-            'Weight', 'fur_type', 'origin', 'vaccinated', 'last_vaccine_date', 'trained'
-        ]));
-
-        return response()->json($pet);
+   public function destroy(Request $request, $id)
+{
+    $pet = Pet::find($id);
+    if (!$pet) {
+        return response()->json(['message' => 'Pet not found'], 404);
     }
 
-    public function destroy($id)
-    {
-        $pet = Pet::find($id);
-        if (!$pet) {
-            return response()->json(['message' => 'Pet not found'], 404);
-        }
+    $userId = $request->input('user_id'); // ✅ Lấy user_id từ client
 
-        // Kiểm tra user có quyền xóa pet này không
-        $authUser = auth()->user();
-        if ($pet->UserID !== $authUser->UserID) { // Kiểm tra quyền sở hữu pet
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
-
-        // Xóa các bản ghi liên quan (appointments, notes)
-        Appointment::where('PetID', $id)->delete();
-        $pet->notes()->delete();
-        $pet->delete();
-
-        return response()->json(['message' => 'Pet deleted']);
+    // ✅ Cho phép xoá nếu chính chủ (hoặc bạn có thể cho phép staff)
+    if ($userId !== $pet->UserID) {
+        return response()->json(['message' => 'Bạn không có quyền!'], 403);
     }
+
+    // ✅ Tìm tất cả các cuộc hẹn liên quan đến thú cưng
+    $appointments = Appointment::where('PetID', $id)->get();
+
+    foreach ($appointments as $appointment) {
+        // ✅ Xoá lịch sử cuộc hẹn trước
+        $appointment->histories()->delete();
+
+        // ✅ Sau đó xoá chính cuộc hẹn
+        $appointment->delete();
+    }
+
+    // ✅ Sau đó xoá ghi chú sức khỏe và bản ghi thú cưng
+    $pet->notes()->delete();
+    $pet->delete();
+
+    return response()->json(['message' => 'Pet deleted']);
+}
 }

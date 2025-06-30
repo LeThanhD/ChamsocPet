@@ -8,7 +8,8 @@ class Medications extends Model
 {
     protected $table = 'medications';
     protected $primaryKey = 'MedicationID';
-    public $incrementing = false;
+    protected $keyType = 'string'; // 👉 Thêm dòng này để Laravel không coi là int
+    public $incrementing = false;  
     public $timestamps = false;
 
     protected $fillable = [

@@ -2,232 +2,391 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'AppointmentHistory.dart';
 import 'AppointmentScreen.dart';
+import 'AppointmentDetailPage.dart';
 
 class AppointmentPage extends StatefulWidget {
   const AppointmentPage({super.key, required this.appointmentData});
   final Map<String, dynamic> appointmentData;
 
   @override
-  State<AppointmentPage> createState() => _AppointmentPageState();
+  AppointmentPageState createState() => AppointmentPageState();
 }
 
-class _AppointmentPageState extends State<AppointmentPage> {
+class AppointmentPageState extends State<AppointmentPage> {
   List<Map<String, dynamic>> appointments = [];
+  String? role;
+  String? userId;
+  bool isLoading = false;
+  bool isSearching = false;
+  final searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    loadAppointments();
+    loadUserAndFetchAppointments();
   }
 
-  Future<void> loadAppointments() async {
+  Future<void> loadUserAndFetchAppointments() async {
+    final prefs = await SharedPreferences.getInstance();
+    userId = prefs.getString('user_id');
+    role = prefs.getString('role');
+
     if (widget.appointmentData.isNotEmpty &&
         !appointments.any((a) => a['AppointmentID'] == widget.appointmentData['AppointmentID'])) {
       appointments.add(widget.appointmentData);
     }
+
     await fetchAppointments();
   }
 
-  Future<String?> _getUserId() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('user_id');
-  }
+  Future<void> fetchAppointments({String query = ''}) async {
+    setState(() => isLoading = true);
+    String url;
 
-  Future<void> fetchAppointments() async {
-    final userId = await _getUserId();
-    if (userId == null) {
-      print('❌ Không có user ID.');
-      return;
+    if (role == 'staff') {
+      url = 'http://192.168.0.108:8000/api/appointments/every?role=staff';
+      if (query.isNotEmpty) url += '&search=$query';
+    } else {
+      url = 'http://192.168.0.108:8000/api/appointments/all?UserID=$userId';
+      if (query.isNotEmpty) url += '&search=$query';
     }
 
     try {
-      final response = await http.get(
-        Uri.parse('http://192.168.0.108:8000/api/appointments/all?UserID=$userId'),
-        headers: {
-          'Accept': 'application/json',
-        },
-      );
-
+      final response = await http.get(Uri.parse(url), headers: {'Accept': 'application/json'});
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         final List<dynamic> data = decoded['data'] ?? [];
-
         setState(() {
-          for (var item in data) {
-            final mapItem = Map<String, dynamic>.from(item);
-            if (!appointments.any((a) => a['AppointmentID'] == mapItem['AppointmentID'])) {
-              appointments.add(mapItem);
-            }
-          }
+          appointments = data
+              .cast<Map<String, dynamic>>()
+              .where((a) => a['Status'] != 'Kết thúc')
+              .toList();
         });
       } else {
         print('❌ Fetch failed: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       print('❌ Exception occurred: $e');
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
-  Future<void> deleteAppointment(String appointmentId) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xác nhận'),
-        content: const Text('Bạn có chắc chắn muốn hủy lịch hẹn này không?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Hủy lịch')),
-        ],
-      ),
+  Future<void> saveToHistory(Map<String, dynamic> item) async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> current = prefs.getStringList('history_appointments') ?? [];
+    current.add(jsonEncode(item));
+    await prefs.setStringList('history_appointments', current);
+  }
+
+  Future<void> createNotification(String userId, String title, String message) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? '';
+
+    final response = await http.post(
+      Uri.parse('http://192.168.0.108:8000/api/notifications'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'user_id': userId,
+        'title': title,
+        'message': message,
+      }),
     );
 
-    if (confirmed == true) {
-      final response = await http.delete(
-        Uri.parse('http://192.168.0.108:8000/api/appointments/$appointmentId'),
-        headers: {
-          'Accept': 'application/json',
-        },
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      print('❌ Gửi thông báo thất bại: ${response.body}');
+    }
+  }
+
+  Future<void> updateStatus(String appointmentId, String status) async {
+    setState(() => isLoading = true);
+
+    try {
+      final appointment = appointments.firstWhere(
+            (a) => a['AppointmentID'] == appointmentId,
+        orElse: () => {},
+      );
+
+      final response = await http.put(
+        Uri.parse('http://192.168.0.108:8000/api/appointments/update-status/$appointmentId'),
+        headers: {'Accept': 'application/json'},
+        body: {'Status': status},
       );
 
       if (response.statusCode == 200) {
-        setState(() {
-          appointments.removeWhere((a) => a['AppointmentID'] == appointmentId);
-        });
+        if (status == 'Đã duyệt' && appointment.isNotEmpty) {
+          await createNotification(
+            appointment['UserID'].toString(),
+            'Lịch hẹn đã được duyệt',
+            'Cuộc hẹn ngày ${appointment['AppointmentDate']} đã được xác nhận.',
+          );
+        }
+
+        if (status == 'Kết thúc') {
+          try {
+            final detailRes = await http.get(
+              Uri.parse('http://192.168.0.108:8000/api/appointments/$appointmentId'),
+              headers: {'Accept': 'application/json'},
+            );
+
+            if (detailRes.statusCode == 200) {
+              final fullData = jsonDecode(detailRes.body)['data'];
+              await saveToHistory(fullData);
+              await createNotification(
+                fullData['UserID'].toString(),
+                'Lịch hẹn đã hoàn thành',
+                'Kính mời quý khách đến nhận thú cưng trong thời gian sớm nhất.',
+              );
+            } else if (appointment.isNotEmpty) {
+              await saveToHistory(appointment);
+              await createNotification(
+                appointment['UserID'].toString(),
+                'Lịch hẹn đã hoàn thành',
+                'Kính mời quý khách đến nhận thú cưng trong thời gian sớm nhất.',
+              );
+            }
+          } catch (e) {
+            print('❌ Lỗi khi lưu lịch sử: $e');
+          }
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AppointmentHistoryPage()),
+          );
+        }
+
+        await fetchAppointments();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã hủy lịch hẹn thành công')),
+          const SnackBar(content: Text('✅ Cập nhật trạng thái thành công')),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Xóa lịch hẹn thất bại: ${response.reasonPhrase}')),
-        );
+        print('❌ Cập nhật trạng thái thất bại: ${response.body}');
       }
+    } catch (e) {
+      print('❌ Lỗi khi cập nhật trạng thái: $e');
     }
+
+    setState(() => isLoading = false);
   }
 
-  Future<void> navigateToNewAppointment() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AppointmentScreen(),
-      ),
-    );
+  Widget statusActions(String current, String id) {
+    final Map<String, List<String>> next = {
+      'Chưa duyệt': ['Đã duyệt'],
+      'Đã duyệt': ['Kết thúc'],
+    };
 
-    if (result != null && result is Map<String, dynamic>) {
-      setState(() {
-        appointments.add(result);
-      });
+    return next[current] != null
+        ? Row(
+      children: next[current]!
+          .map(
+            (s) => Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurpleAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+            onPressed: () => updateStatus(id, s),
+            child: Text(s, style: const TextStyle(color: Colors.white)),
+          ),
+        ),
+      )
+          .toList(),
+    )
+        : const SizedBox();
+  }
+
+  Color getStatusColor(String status) {
+    switch (status) {
+      case 'Kết thúc':
+        return Colors.green;
+      case 'Đã duyệt':
+        return Colors.orange;
+      default:
+        return Colors.red;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+    return WillPopScope(
+      onWillPop: () async {
+        if (isSearching) {
+          setState(() {
+            isSearching = false;
+            searchController.clear();
+            fetchAppointments();
+          });
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF9F9FB),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          flexibleSpace: Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [Color(0xFFEBDDF8), Color(0xFF9FF3F9)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: Row(
-                children: const [
-                  Spacer(),
-                  Text(
-                    'Lịch hẹn',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  Spacer(),
-                  SizedBox(width: 48),
-                ],
-              ),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
             ),
           ),
-          Expanded(
-            child: Container(
-              color: Colors.white,
+          title: isSearching
+              ? TextField(
+            controller: searchController,
+            autofocus: true,
+            onChanged: (value) => fetchAppointments(query: value),
+            style: const TextStyle(color: Colors.black),
+            decoration: const InputDecoration(
+              hintText: 'Tìm thú cưng hoặc dịch vụ...',
+              hintStyle: TextStyle(color: Colors.black45),
+              border: InputBorder.none,
+            ),
+          )
+              : const Text(
+            'Lịch hẹn',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black),
+          ),
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: Icon(isSearching ? Icons.close : Icons.search, color: Colors.black),
+              onPressed: () {
+                setState(() {
+                  isSearching = !isSearching;
+                  if (!isSearching) {
+                    searchController.clear();
+                    fetchAppointments();
+                  }
+                });
+              },
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            if (isLoading) const LinearProgressIndicator(),
+            Expanded(
               child: appointments.isEmpty
-                  ? const Center(
-                child: Text(
-                  'Chưa có lịch hẹn nào.',
-                  style: TextStyle(color: Colors.black87, fontSize: 18),
-                ),
-              )
+                  ? const Center(child: Text('Chưa có lịch hẹn nào.', style: TextStyle(fontSize: 18)))
                   : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 itemCount: appointments.length,
                 itemBuilder: (context, index) {
-                  final appointment = appointments[index];
-                  final status = appointment['Status'] ?? 'Chưa có trạng thái';
-                  final userName = appointment['user']?['FullName'] ?? 'Không có tên khách hàng';
-                  final petName = appointment['pet']?['Name'] ?? 'Không có tên thú cưng';
-                  final serviceName = appointment['service']?['ServiceName'] ?? 'Không có tên dịch vụ';
+                  final appt = appointments[index];
+                  final status = appt['Status'] ?? 'Chưa có trạng thái';
+                  final userName = appt['user']?['FullName'] ?? 'Không có tên khách hàng';
+                  final staffName = appt['staff']?['FullName'] ?? appt['staff']?['name'] ?? 'Không có nhân viên phụ trách';
+                  final petName = appt['pet']?['Name'] ?? 'Không có tên thú cưng';
+                  final serviceName = appt['service']?['ServiceName'] ?? 'Không có tên dịch vụ';
 
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.4),
-                          blurRadius: 4,
-                          offset: const Offset(2, 2),
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AppointmentDetailPage(appointment: appt),
                         ),
-                      ],
-                    ),
-                    child: Stack(
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Khách hàng: $userName'),
-                            Text('Thú cưng: $petName'),
-                            Text('Ngày: ${appointment['AppointmentDate'] ?? ''}'),
-                            Text('Giờ: ${appointment['AppointmentTime'] ?? ''}'),
-                            Text('Dịch vụ: $serviceName'),
-                            Text('Ghi chú: ${appointment['Reason'] ?? ''}'),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Trạng thái: $status',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: IconButton(
-                            icon: const Icon(Icons.cancel, color: Colors.red),
-                            onPressed: () {
-                              deleteAppointment(appointment['AppointmentID']);
-                            },
+                      );
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.pets, color: Colors.deepPurple),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '$petName (${appt['AppointmentDate'] ?? ''} - ${appt['AppointmentTime'] ?? ''})',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text('👤 Khách hàng: $userName'),
+                          Text('👨‍🔧 Nhân viên: $staffName'),
+                          Text('🛠️ Dịch vụ: $serviceName'),
+                          if (appt['Reason'] != null && appt['Reason'].toString().isNotEmpty)
+                            Text('📝 Ghi chú: ${appt['Reason']}'),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: getStatusColor(status).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: getStatusColor(status)),
+                                ),
+                                child: Text(
+                                  status,
+                                  style: TextStyle(
+                                    color: getStatusColor(status),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              if (role == 'staff') statusActions(status, appt['AppointmentID']),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 },
               ),
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: navigateToNewAppointment,
-        backgroundColor: Colors.white,
-        child: const Icon(Icons.add),
+          ],
+        ),
+        floatingActionButton: role == 'staff'
+            ? null
+            : FloatingActionButton(
+          onPressed: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => AppointmentScreen()),
+            );
+            if (result == true) {
+              await fetchAppointments();
+            }
+          },
+          backgroundColor: Colors.deepPurple,
+          child: const Icon(Icons.add, color: Colors.white),
+        ),
       ),
     );
   }

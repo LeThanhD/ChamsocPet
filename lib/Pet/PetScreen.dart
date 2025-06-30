@@ -1,8 +1,8 @@
-import 'package:chamsocpet/Qu%E1%BA%A3n%20L%C3%BD/AddPetScreen.dart';
-import 'package:chamsocpet/Qu%E1%BA%A3n%20L%C3%BD/PetSecondScreen.dart';
+
 import 'package:flutter/material.dart';
 
 import '../Page/PageScreen.dart';
+import 'AddPetScreen.dart';
 
 
 class PetScreen extends StatelessWidget {
@@ -117,10 +117,10 @@ class PetScreen extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => PetSecondScreen()),
-              );
+              // Navigator.pushReplacement(
+              //   context,
+              //   MaterialPageRoute(builder: (context) => PetSecondScreen()),
+              // );
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.lightBlue),
             child: const Text("Xem"),

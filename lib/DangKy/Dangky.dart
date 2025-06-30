@@ -24,7 +24,6 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
   final _fullNameController = TextEditingController();
   final _nationalIDController = TextEditingController();
 
-
   bool _obscurePassword = true;
   DateTime? birthDate;
 
@@ -71,10 +70,12 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
           SnackBar(content: Text(responseData['message'] ?? 'Đăng ký thành công!')),
         );
         await Future.delayed(const Duration(seconds: 2));
-        if (mounted) Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => LoginScreen()),
-        );
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+          );
+        }
       } else {
         String message = responseData['message'] ?? 'Lỗi không xác định';
         if (responseData['errors'] != null) {
@@ -93,7 +94,7 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
     }
   }
 
-  void _submitForm() async {
+  void _submitForm() {
     if (_formKey.currentState!.validate()) {
       final userData = {
         "username": _usernameController.text.trim(),
@@ -105,7 +106,7 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
         "address": _addressController.text.trim(),
         "national_id": _nationalIDController.text.trim(),
       };
-      await submitToAPI(userData);
+      submitToAPI(userData);
     }
   }
 
@@ -114,13 +115,13 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
     filled: true,
     fillColor: Colors.white,
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-    contentPadding:
-    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
   );
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -136,18 +137,25 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
               key: _formKey,
               child: ListView(
                 children: [
-                  const SizedBox(height: 10),
-                  const Center(
-                    child: Text("Đăng ký tài khoản",
-                        style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        "Đăng ký tài khoản",
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 20),
                   TextFormField(
                     controller: _usernameController,
                     decoration: _input("Tài khoản"),
-                    validator: (v) =>
-                    v == null || v.isEmpty ? "Nhập tài khoản" : null,
+                    validator: (v) => v == null || v.isEmpty ? "Nhập tài khoản" : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -155,17 +163,14 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
                     obscureText: _obscurePassword,
                     decoration: _input("Mật khẩu").copyWith(
                       suffixIcon: IconButton(
-                        icon: Icon(_obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility),
-                        onPressed: () =>
-                            setState(() => _obscurePassword = !_obscurePassword),
+                        icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                       ),
                     ),
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Nhập mật khẩu';
                       if (!_passwordRegExp.hasMatch(v)) {
-                        return 'Ít nhất 8 ký tự, 1 hoa, 1 số, 1 đặc biệt';
+                        return 'Ít nhất 8 ký tự, 1 hoa, 1 số, 1 ký tự đặc biệt';
                       }
                       return null;
                     },
@@ -176,8 +181,7 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
                     decoration: _input("Email"),
                     validator: (v) {
                       if (v == null || v.isEmpty) return "Nhập email";
-                      if (!_emailRegExp.hasMatch(v))
-                        return "Email không hợp lệ";
+                      if (!_emailRegExp.hasMatch(v)) return "Email không hợp lệ";
                       return null;
                     },
                   ),
@@ -195,8 +199,7 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
                   TextFormField(
                     controller: _fullNameController,
                     decoration: _input("Họ và tên"),
-                    validator: (v) =>
-                    v == null || v.isEmpty ? "Nhập họ tên" : null,
+                    validator: (v) => v == null || v.isEmpty ? "Nhập họ tên" : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -204,15 +207,13 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
                     readOnly: true,
                     onTap: _selectDate,
                     decoration: _input("Ngày sinh"),
-                    validator: (v) =>
-                    v == null || v.isEmpty ? "Chọn ngày sinh" : null,
+                    validator: (v) => v == null || v.isEmpty ? "Chọn ngày sinh" : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _addressController,
                     decoration: _input("Địa chỉ"),
-                    validator: (v) =>
-                    v == null || v.isEmpty ? "Nhập địa chỉ" : null,
+                    validator: (v) => v == null || v.isEmpty ? "Nhập địa chỉ" : null,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -225,19 +226,34 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _submitForm,
-                    child: const Text("Đăng ký",
-                        style: TextStyle(color: Colors.black)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.lightBlue[200],
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 80, vertical: 15),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                  const SizedBox(height: 24),
+                  Container(
+                    width: double.infinity,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.95),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                  )
+                    child: TextButton(
+                      onPressed: _submitForm,
+                      child: const Text(
+                        "Đăng ký",
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),

@@ -18,13 +18,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text("Cài đặt", style: TextStyle(color: Colors.black)),
+        title: const Text("⚙️ Cài đặt", style: TextStyle(color: Colors.black)),
+        centerTitle: true,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context), // Không gọi lại ProfilePage
-        ),
+        backgroundColor: Colors.transparent,
+        leading: const BackButton(color: Colors.black),
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -34,68 +34,89 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ),
-        backgroundColor: Colors.transparent,
       ),
-      backgroundColor: Colors.white,
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
-            child: ListView(
-              children: [
-                buildSwitchTile("Màn hình sáng tối", darkMode, (val) {
-                  setState(() => darkMode = val);
-                }),
-                buildNavTile("Đổi mật khẩu", onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ChangePasswordScreen()),
-                  );
-                }),
-                buildSwitchTile("Thông báo", notifications, (val) {
-                  setState(() => notifications = val);
-                }),
-                buildNavTile("Lịch sử thú cưng đã điều trị", onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const MedicalHistoryScreen()),
-                  );
-                }),
-                buildNavTile("Thay đổi tài khoản", onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const SwitchAccountScreen()),
-                  );
-                }),
-                buildSwitchTile("Trạng thái hoạt động", activeStatus, (val) {
-                  setState(() => activeStatus = val);
-                }),
-              ],
+          // Gradient background
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFFFDEFF9), Color(0xFFD1F4FF)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
             ),
           ),
 
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE36C1A),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+          // Content
+          SafeArea(
+            child: Column(
+              children: [
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      _buildSectionTitle("Giao diện & Hệ thống"),
+                      _buildSwitchTile("🌙 Chế độ tối", darkMode, (val) {
+                        setState(() => darkMode = val);
+                      }),
+                      _buildSwitchTile("🔔 Thông báo", notifications, (val) {
+                        setState(() => notifications = val);
+                      }),
+                      _buildSwitchTile("🟢 Trạng thái hoạt động", activeStatus, (val) {
+                        setState(() => activeStatus = val);
+                      }),
+                      const SizedBox(height: 12),
+                      _buildSectionTitle("Tài khoản & Dữ liệu"),
+                      _buildNavTile("🔐 Đổi mật khẩu", onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
+                        );
+                      }),
+                      _buildNavTile("📋 Lịch sử thú cưng điều trị", onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const MedicalHistoryScreen()),
+                        );
+                      }),
+                      _buildNavTile("👥 Chuyển tài khoản", onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const SwitchAccountScreen()),
+                        );
+                      }),
+                    ],
                   ),
                 ),
-                onPressed: () {
-                  // TODO: xử lý đăng xuất tại đây
-                },
-                child: const Text(
-                  'ĐĂNG XUẤT',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+
+                // Logout button
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.logout),
+                      label: const Text(
+                        'ĐĂNG XUẤT',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFE36C1A),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
+                        // TODO: xử lý đăng xuất
+                      },
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ],
@@ -103,22 +124,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget buildSwitchTile(String title, bool value, Function(bool) onChanged) {
-    return ListTile(
-      title: Text(title),
-      trailing: Switch(
-        value: value,
-        activeColor: Colors.blue,
-        onChanged: onChanged,
+  // ===== Custom Widgets =====
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.bold,
+          color: Colors.black87,
+        ),
       ),
     );
   }
 
-  Widget buildNavTile(String title, {VoidCallback? onTap}) {
-    return ListTile(
-      title: Text(title),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: onTap,
+  Widget _buildSwitchTile(String title, bool value, Function(bool) onChanged) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        title: Text(title),
+        trailing: Switch(
+          value: value,
+          activeColor: Colors.deepPurpleAccent,
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavTile(String title, {VoidCallback? onTap}) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        title: Text(title),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 18),
+        onTap: onTap,
+      ),
     );
   }
 }

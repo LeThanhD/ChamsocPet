@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'EditProfileScreen.dart';
 
 class UserInformationScreen extends StatefulWidget {
@@ -9,14 +12,57 @@ class UserInformationScreen extends StatefulWidget {
 }
 
 class _UserInformationScreenState extends State<UserInformationScreen> {
-  String selectedGender = "Nam"; // Mặc định là "Nam"
+  String fullName = '';
+  String gender = '';
+  String birthDate = '';
+  String address = '';
+  String email = '';
+  String phone = '';
+  String citizenId = '';
+  String userId = '';
+  String imageUrl = '';
+
+  @override
+  void initState() {
+    super.initState();
+    loadUserData();
+  }
+
+  Future<void> loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    userId = prefs.getString('user_id') ?? '';
+    if (userId.isEmpty) return;
+
+    final url = Uri.parse('http://192.168.0.108:8000/api/users/detail/$userId');
+    final response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      setState(() {
+        fullName = data['name'] ?? '';
+        gender = (data['gender'] == 1 || data['gender'] == 'Nam') ? 'Nam' : 'Nữ';
+        birthDate = data['birth_date'] ?? '';
+        address = data['address'] ?? '';
+        email = data['email'] ?? '';
+        phone = data['phone'] ?? '';
+        citizenId = data['citizen_id'] ?? '';
+        final rawImage = data['image'] ?? '';
+        imageUrl = rawImage.startsWith('http')
+            ? rawImage
+            : 'http://192.168.0.108:8000/storage/images/$rawImage';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF4F7FA),
       appBar: AppBar(
-        title: const Text("Chỉnh sửa thông tin", style: TextStyle(color: Colors.black)),
+        title: const Text("Thông tin cá nhân", style: TextStyle(color: Colors.black)),
+        centerTitle: true,
         elevation: 0,
+        backgroundColor: Colors.transparent,
         leading: const BackButton(color: Colors.black),
         flexibleSpace: Container(
           decoration: const BoxDecoration(
@@ -27,30 +73,32 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
             ),
           ),
         ),
-        backgroundColor: Colors.transparent,
       ),
-      backgroundColor: Colors.white,
       body: ListView(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            color: const Color(0xFFECECEC),
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFFEFD4F5), Color(0xFF83F1F5)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
             child: Column(
               children: [
                 CircleAvatar(
-                  radius: 40,
+                  radius: 50,
                   backgroundColor: Colors.white,
-                  child: TextButton(
-                    onPressed: () {
-                      // TODO: xử lý chọn ảnh
-                    },
-                    child: const Text("Chọn ảnh"),
-                  ),
+                  backgroundImage: imageUrl.isNotEmpty ? NetworkImage(imageUrl) : null,
+                  child: imageUrl.isEmpty
+                      ? const Icon(Icons.person, size: 50, color: Colors.white70)
+                      : null,
                 ),
-                const SizedBox(height: 10),
-                const Text(
-                  "Peter",
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                const SizedBox(height: 12),
+                Text(
+                  fullName,
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
                 ),
               ],
             ),
@@ -58,60 +106,47 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                InfoRow(label: "Giới tính:", value: selectedGender),
-                const InfoRow(label: "Ngày sinh:", value: "03/08/1999"),
-                const InfoRow(label: "Địa chỉ:", value: "Quận 7"),
-                const InfoRow(label: "Email:", value: "lethanhdanhbtvn@gmail.com"),
-                const InfoRow(label: "Số điện thoại:", value: "0356857480"),
-                const SizedBox(height: 20),
-                const Text("Chọn giới tính:", style: TextStyle(fontSize: 16)),
-                const SizedBox(height: 10),
-                Row(
+            child: Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Radio<String>(
-                      value: 'Nam',
-                      groupValue: selectedGender,
-                      onChanged: (value) {
-                        setState(() => selectedGender = value!);
-                      },
-                    ),
-                    const Text('Nam'),
-                    const SizedBox(width: 20),
-                    Radio<String>(
-                      value: 'Nữ',
-                      groupValue: selectedGender,
-                      onChanged: (value) {
-                        setState(() => selectedGender = value!);
-                      },
-                    ),
-                    const Text('Nữ'),
+                    InfoRow(icon: Icons.wc, label: "Giới tính", value: gender),
+                    InfoRow(icon: Icons.cake, label: "Ngày sinh", value: birthDate),
+                    InfoRow(icon: Icons.home, label: "Địa chỉ", value: address),
+                    InfoRow(icon: Icons.email, label: "Email", value: email),
+                    InfoRow(icon: Icons.phone, label: "Số điện thoại", value: phone),
+                    InfoRow(icon: Icons.badge, label: "CCCD", value: citizenId),
                   ],
                 ),
-                const SizedBox(height: 24),
-                Center(
-                  child: SizedBox(
-                    width: 250,
-                    height: 45,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange[700],
-                      ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) =>EditProfileScreen()),
-                        );
-                      },
-                      child: const Text("Chỉnh sửa", style: TextStyle(fontSize: 16)),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
+          const SizedBox(height: 10),
+          Center(
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.edit, color: Colors.white),
+              label: const Text("Chỉnh sửa", style: TextStyle(fontSize: 16)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepOrange,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => EditProfileScreen()),
+                );
+                if (result == true) {
+                  loadUserData();
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -119,23 +154,30 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
 }
 
 class InfoRow extends StatelessWidget {
+  final IconData icon;
   final String label;
   final String value;
 
-  const InfoRow({super.key, required this.label, required this.value});
+  const InfoRow({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 16)),
-          const SizedBox(width: 5),
+          Icon(icon, size: 22, color: Colors.black54),
+          const SizedBox(width: 10),
           Expanded(
-            child: Text(value,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            child: Text(
+              "$label: ${value.isEmpty ? '(Chưa có)' : value}",
+              style: const TextStyle(fontSize: 16, color: Colors.black87),
+            ),
           ),
         ],
       ),

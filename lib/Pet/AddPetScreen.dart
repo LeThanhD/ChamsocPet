@@ -59,13 +59,29 @@ class _AddPetScreenState extends State<AddPetScreen> {
 
     setState(() => isLoading = true);
 
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    if (token == null) {
+      setState(() => isLoading = false);
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("Lỗi"),
+          content: const Text("Bạn chưa đăng nhập hoặc token đã hết hạn."),
+        ),
+      );
+      return;
+    }
+
     final uri = Uri.parse('http://192.168.0.108:8000/api/pets');
 
     final response = await http.post(
       uri,
       headers: {
-        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
         'Accept': 'application/json',
+        'Content-Type': 'application/json',
       },
       body: jsonEncode({
         'Name': nameController.text,
@@ -76,7 +92,6 @@ class _AddPetScreenState extends State<AddPetScreen> {
         'BirthDate': dobController.text,
         'Weight': double.tryParse(weightController.text) ?? 0,
         'UserID': userId,
-        'HealthStatus': healthController.text,
         'origin': originController.text,
         'fur_type': selectedFurType,
         'vaccinated': vaccinated ? 1 : 0,
@@ -84,14 +99,15 @@ class _AddPetScreenState extends State<AddPetScreen> {
         'last_vaccine_date': lastVaccineDateController.text.isNotEmpty
             ? lastVaccineDateController.text
             : null,
+        'HealthStatus': healthController.text,
       }),
     );
 
-    setState(() => isLoading = false);
-
     if (response.statusCode == 201) {
-      Navigator.pop(context, 'added');
+      setState(() => isLoading = false);
+      Navigator.pop(context, 'added'); // ✅ quay lại ManagePetScreen và reload danh sách
     } else {
+      setState(() => isLoading = false);
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
@@ -120,7 +136,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFFEFD4F5), Color(0xFF83F1F5)],
+            colors: [Color(0xFFFCEEF8), Color(0xFFE0F7FA)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -139,8 +155,10 @@ class _AddPetScreenState extends State<AddPetScreen> {
                     ),
                     const Expanded(
                       child: Center(
-                        child: Text('Thêm thú cưng',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                        child: Text(
+                          'Thêm thú cưng',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 48),
@@ -231,12 +249,15 @@ class _AddPetScreenState extends State<AddPetScreen> {
                     onPressed: _submitPet,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.deepOrange,
-                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
+                      foregroundColor: Colors.white,
+                      elevation: 4,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(14),
                       ),
+                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
-                    child: const Text('Xác nhận', style: TextStyle(color: Colors.white)),
+                    child: const Text('Xác nhận'),
                   ),
                 ),
               ],
@@ -250,13 +271,21 @@ class _AddPetScreenState extends State<AddPetScreen> {
   Widget _buildTextField(String label, TextEditingController controller) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: TextField(
-        controller: controller,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-          filled: true,
-          fillColor: Colors.white,
+      child: Material(
+        elevation: 2,
+        shadowColor: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+        child: TextField(
+          controller: controller,
+          style: const TextStyle(fontSize: 16),
+          decoration: InputDecoration(
+            labelText: label,
+            labelStyle: const TextStyle(fontWeight: FontWeight.w500),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
         ),
       ),
     );
@@ -268,26 +297,32 @@ class _AddPetScreenState extends State<AddPetScreen> {
     required String? selectedValue,
     required ValueChanged<String?> onChanged,
   }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
-          hint: Text(label),
-          value: selectedValue,
-          items: items.map((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(value),
-            );
-          }).toList(),
-          onChanged: onChanged,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Material(
+        elevation: 2,
+        shadowColor: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              hint: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+              value: selectedValue,
+              items: items.map((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                );
+              }).toList(),
+              onChanged: onChanged,
+            ),
+          ),
         ),
       ),
     );

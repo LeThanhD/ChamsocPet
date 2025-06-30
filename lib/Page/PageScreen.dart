@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:chamsocpet/Profile/ProfilePage.dart';
-import 'package:chamsocpet/Quản Lý/ManageScreen.dart';
+import 'package:chamsocpet/Pet/ManageScreen.dart';
 import '../Appointment/AppointmentPage.dart';
+import '../Appointment/AppointmentScreen.dart';
 import '../Hieuung/AnimalEffect.dart';
 import '../Notification/NotificationScreen.dart';
-import '../Page/ServicePackageScreen.dart';
+import '../Service/ServicePackageScreen.dart';
 import '../Profile/PaymentScreen.dart';
 import '../madicene/MedicinePage.dart';
 
@@ -18,12 +21,20 @@ class PageScreen extends StatefulWidget {
 class _PageScreenState extends State<PageScreen> {
   int currentIndex = 0;
 
-  final List<Widget> pages = [
-    const HomeContent(),
-    AppointmentPage(appointmentData: {}),
-    const ManageScreen(),
-    const ProfilePage(),
-  ];
+  final GlobalKey<AppointmentPageState> _appointmentKey = GlobalKey();
+
+  late final List<Widget> pages;
+
+  @override
+  void initState() {
+    super.initState();
+    pages = [
+      HomeContent(),
+      AppointmentPage(key: _appointmentKey, appointmentData: {}),
+      const ManageScreen(),
+      const ProfilePage(),
+    ];
+  }
 
   void _onItemTapped(int index) {
     setState(() => currentIndex = index);
@@ -32,7 +43,7 @@ class _PageScreenState extends State<PageScreen> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      behavior: HitTestBehavior.translucent, // 👈 Nhận cả vùng trống
+      behavior: HitTestBehavior.translucent,
       onTapDown: (details) {
         AnimalEffect.show(context, details.globalPosition);
       },
@@ -41,7 +52,7 @@ class _PageScreenState extends State<PageScreen> {
         body: IndexedStack(index: currentIndex, children: pages),
         bottomNavigationBar: BottomNavigationBar(
           backgroundColor: const Color(0xFFF3E1F9),
-          selectedItemColor: Colors.blue,
+          selectedItemColor: Colors.deepPurple,
           unselectedItemColor: Colors.black,
           currentIndex: currentIndex,
           onTap: _onItemTapped,
@@ -73,40 +84,44 @@ class HomeContent extends StatelessWidget {
       ),
       child: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.only(bottom: 20),
           child: Column(
             children: [
               const SizedBox(height: 20),
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 24),
-                height: 300,
+                height: 180,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 4))],
                   image: const DecorationImage(
-                    image: AssetImage('assets/anhAvatar.png'), // ảnh đại diện
+                    image: AssetImage('assets/anhAvatar.png'),
                     fit: BoxFit.cover,
                   ),
                 ),
               ),
               const SizedBox(height: 24),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: GridView.count(
-                  crossAxisCount: 2,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: GridView(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: 1,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 1.1,
+                  ),
                   children: [
-                    _iconSquare(context, Icons.medication, 'Thuốc', Colors.lightBlue, MedicinePage()),
-                    _iconSquare(context, Icons.miscellaneous_services, 'Dịch vụ', Colors.pinkAccent, const ServicePackageScreen()),
-                    _iconSquare(context, Icons.notifications, 'Thông báo', Colors.amber, const NotificationScreen()),
-                    _iconSquare(context, Icons.payment, 'Thanh toán', Colors.green, const PaymentScreen()),
+                    _menuCard(context, Icons.medication, 'Thuốc', Colors.lightBlue, MedicinePage()),
+                    _menuCard(context, Icons.soap, 'Dịch vụ', Colors.pinkAccent, const ServicePackageScreen()),
+                    _menuCard(context, Icons.notifications, 'Thông báo', Colors.orange, const NotificationScreen()),
+                    _menuCard(context, Icons.payment, 'Thanh toán', Colors.green, const PaymentScreen()),
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -114,24 +129,29 @@ class HomeContent extends StatelessWidget {
     );
   }
 
-  Widget _iconSquare(BuildContext context, IconData icon, String label, Color color, Widget targetPage) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => targetPage));
+  Widget _menuCard(BuildContext context, IconData icon, String label, Color color, Widget? page, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap ?? () {
+        if (page != null) Navigator.push(context, MaterialPageRoute(builder: (_) => page));
       },
       child: Container(
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(color: Colors.black12, blurRadius: 5, offset: Offset(0, 3)),
+          ],
         ),
+        padding: const EdgeInsets.all(12),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.white, size: 28),
-            const SizedBox(height: 8),
+            Icon(icon, color: Colors.white, size: 30),
+            const SizedBox(height: 12),
             Text(
               label,
-              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
             ),
           ],
         ),

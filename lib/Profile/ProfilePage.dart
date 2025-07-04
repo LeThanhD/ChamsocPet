@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../Appointment/AppointmentHistory.dart';
-import '../Setting/InvoiceListScreen.dart';
-import 'PaymentScreen.dart';
+import '../bill/InvoiceListScreen.dart';
+import '../pay/AdminApprovalScreen.dart';
 import 'UserInformationScreen.dart';
 import '../Setting/SettingScreen.dart';
 
@@ -18,6 +18,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   String name = 'Đang tải...';
   String imageUrl = '';
+  String userRole = '';
   bool isLoading = true;
 
   @override
@@ -44,8 +45,14 @@ class _ProfilePageState extends State<ProfilePage> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final rawImage = data['image'] ?? '';
+        final roleFromAPI = data['role']?.toString().toLowerCase() ?? '';
+
+        print("DEBUG DATA: $data");
+        print("DEBUG ROLE: $roleFromAPI");
+
         setState(() {
           name = data['name'] ?? 'Không rõ';
+          userRole = roleFromAPI;
           imageUrl = rawImage.startsWith('http')
               ? rawImage
               : 'http://192.168.0.108:8000/storage/$rawImage';
@@ -67,13 +74,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-
     try {
       await http.post(Uri.parse('http://192.168.0.108:8000/api/logout'), headers: {
         'Accept': 'application/json',
       });
     } catch (_) {}
-
     await prefs.clear();
     if (!mounted) return;
     Navigator.pushReplacementNamed(context, '/login');
@@ -157,27 +162,39 @@ class _ProfilePageState extends State<ProfilePage> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const InvoiceListScreen()));
                   },
                 ),
-                _buildMenuTile(
-                  icon: Icons.payment,
-                  title: 'Thanh toán',
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const PaymentScreen()));
-                  },
-                ),
-                _buildMenuTile(
-                  icon: Icons.privacy_tip,
-                  title: 'Điều khoản & Chính sách',
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-                  },
-                ),
-                _buildMenuTile(
-                  icon: Icons.help_outline,
-                  title: 'Hỗ trợ',
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-                  },
-                ),
+                // if (userRole == 'staff')
+                if (userRole == 'staff')
+                  _buildMenuTile(
+                    icon: Icons.admin_panel_settings,
+                    title: 'Duyệt thanh toán',
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => const AdminApprovalScreen()));
+                    },
+                  )
+                else if (userRole == 'owner')
+                  _buildMenuTile(
+                    icon: Icons.payment,
+                    title: 'Thanh toán hóa đơn',
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => const InvoiceListScreen()));
+                    },
+                  ),
+                // _buildMenuTile(
+                //   icon: Icons.privacy_tip,
+                //   title: 'Điều khoản & Chính sách',
+                //   onTap: () {
+                //     Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                //   },
+                // ),
+                // _buildMenuTile(
+                //   icon: Icons.help_outline,
+                //   title: 'Hỗ trợ',
+                //   onTap: () {
+                //     Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                //   },
+                // ),
               ],
             ),
           ),

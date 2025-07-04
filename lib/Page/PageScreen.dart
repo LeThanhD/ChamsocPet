@@ -1,3 +1,4 @@
+import 'package:chamsocpet/bill/InvoiceListScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -8,7 +9,7 @@ import '../Appointment/AppointmentScreen.dart';
 import '../Hieuung/AnimalEffect.dart';
 import '../Notification/NotificationScreen.dart';
 import '../Service/ServicePackageScreen.dart';
-import '../Profile/PaymentScreen.dart';
+import '../pay/PaymentScreen.dart';
 import '../madicene/MedicinePage.dart';
 
 class PageScreen extends StatefulWidget {
@@ -117,7 +118,7 @@ class HomeContent extends StatelessWidget {
                     _menuCard(context, Icons.medication, 'Thuốc', Colors.lightBlue, MedicinePage()),
                     _menuCard(context, Icons.soap, 'Dịch vụ', Colors.pinkAccent, const ServicePackageScreen()),
                     _menuCard(context, Icons.notifications, 'Thông báo', Colors.orange, const NotificationScreen()),
-                    _menuCard(context, Icons.payment, 'Thanh toán', Colors.green, const PaymentScreen()),
+                    _menuCard(context, Icons.inventory_outlined, 'Hóa đơn', Colors.green, const InvoiceListScreen()),
                   ],
                 ),
               ),

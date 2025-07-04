@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1082920654128",
+    "project_id": "chamsocpet-35e6f",
+    "storage_bucket": "chamsocpet-35e6f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1082920654128:android:d24ac3b88683b773af24f5",
+        "android_client_info": {
+          "package_name": "com.example.chamsocpet"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDXwmA4cB1EG8CbzbgcKRvf7uUCNueFmQE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

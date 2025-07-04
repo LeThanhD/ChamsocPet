@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../Page/PageScreen.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+
 
 class LoginPage extends StatefulWidget {
   @override
@@ -54,6 +56,26 @@ class _LoginPageState extends State<LoginPage> {
         await prefs.setString('token', data['token']);
         await prefs.setString('username', user['Username'] ?? '');
         await prefs.setString('role', user['Role'] ?? '');
+
+        // ✅ Gửi FCM token về server
+        final fcmToken = await FirebaseMessaging.instance.getToken();
+        if (fcmToken != null && user['UserID'] != null) {
+          final updateTokenRes = await http.post(
+            Uri.parse('http://192.168.0.108:8000/api/users/update-token'),
+            headers: {'Accept': 'application/json'},
+            body: {
+              'UserID': user['UserID'].toString(),
+              'fcm_token': fcmToken,
+            },
+          );
+
+          if (updateTokenRes.statusCode == 200) {
+            print('✅ Cập nhật FCM token thành công');
+          } else {
+            print('⚠️ Cập nhật FCM token thất bại: ${updateTokenRes.body}');
+          }
+        }
+
 
         if (user['UserID'] != null) {
           if (user['UserID'] is int) {

@@ -10,12 +10,10 @@ class AppointmentScreen extends StatefulWidget {
 
 class _AppointmentScreenState extends State<AppointmentScreen> {
   final TextEditingController noteController = TextEditingController();
-
   String? userId;
   String? selectedTime;
   String? selectedPetID;
   String? selectedServiceID;
-  String? selectedServiceName;
   String? selectedStaffID;
   DateTime? selectedDate;
 
@@ -33,8 +31,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
   Future<void> initUserData() async {
     final prefs = await SharedPreferences.getInstance();
     userId = prefs.getString('user_id');
-    if (userId == null || userId!.isEmpty) return;
-
+    if (userId == null) return;
     await fetchPets();
     await fetchServices();
     await fetchStaff();
@@ -60,8 +57,8 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
       final List<dynamic> pets = decoded is List ? decoded : decoded['data'] ?? [];
       setState(() {
         petList = pets;
-        if (petList.isNotEmpty) {
-          selectedPetID = petList[0]['PetID'].toString();
+        if (pets.isNotEmpty) {
+          selectedPetID = pets[0]['PetID']?.toString();
         }
       });
     }
@@ -79,8 +76,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
       setState(() {
         serviceList = services;
         if (services.isNotEmpty) {
-          selectedServiceName = services[0]['ServiceName'];
-          selectedServiceID = services[0]['ServiceID'].toString();
+          selectedServiceID = services[0]['ServiceID']?.toString();
         }
       });
     }
@@ -100,8 +96,8 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
       final List<dynamic> data = jsonDecode(response.body)['data'];
       setState(() {
         staffList = data;
-        if (staffList.isNotEmpty) {
-          selectedStaffID = staffList[0]['UserID'].toString();
+        if (data.isNotEmpty) {
+          selectedStaffID = data[0]['UserID']?.toString();
         }
       });
     }
@@ -121,15 +117,9 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
         "14:00", "15:00", "16:00", "17:00"
       ];
       final List<String> booked = List<String>.from(decoded['booked_times'] ?? []);
-
       setState(() {
         availableTimes = allSlots.where((time) => !booked.contains(time)).toList();
         if (!availableTimes.contains(selectedTime)) selectedTime = null;
-      });
-    } else {
-      setState(() {
-        availableTimes = [];
-        selectedTime = null;
       });
     }
   }
@@ -150,13 +140,10 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
       return;
     }
 
-    String formattedTime = "$selectedTime:00";
-
     final response = await http.post(
       Uri.parse('http://192.168.0.108:8000/api/appointments'),
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
         'Authorization': 'Bearer $token',
       },
       body: jsonEncode({
@@ -164,48 +151,31 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
         'PetID': selectedPetID,
         'ServiceID': selectedServiceID,
         'AppointmentDate': selectedDate!.toIso8601String().split('T')[0],
-        'AppointmentTime': formattedTime,
-        'Reason': noteController.text,
+        'AppointmentTime': '$selectedTime:00',
+        'Reason': noteController.text.trim().isNotEmpty ? noteController.text.trim() : 'Không có ghi chú',
         'Status': 'Chưa duyệt',
         'StaffID': selectedStaffID,
       }),
     );
 
     if (response.statusCode == 201) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Đặt hẹn thành công')),
-      );
-
-      await http.post(
-        Uri.parse('http://192.168.0.108:8000/api/notifications'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'user_id': userId,
-          'title': 'Lịch hẹn mới',
-          'body': 'Lịch hẹn của bạn đã được tạo và đang chờ duyệt.',
-        }),
-      );
-
-      Navigator.pop(context, true);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Lỗi đặt hẹn (${response.statusCode})')),
-      );
+      if (!mounted) return;
+      Navigator.pop(context, true); // ✅ Chỉ quay lại
     }
   }
 
+
   Widget _buildDropdown(String label, String? value, List<DropdownMenuItem<String>> items, void Function(String?)? onChanged) {
+    final currentValueExists = value != null && items.any((item) => item.value == value);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: DropdownButtonFormField<String>(
-        value: items.any((item) => item.value == value) ? value : null,
+        value: currentValueExists ? value : null,
         onChanged: onChanged,
         decoration: InputDecoration(
           labelText: label,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
           filled: true,
           fillColor: Colors.white,
         ),
@@ -220,37 +190,141 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFFDEFF9), Color(0xFFD1F4FF)],
+            colors: [Color(0xFFF2E8FF), Color(0xFFD2F7FF)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
         ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => Navigator.pop(context),
-                  ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.only(top: 40, left: 16, right: 16, bottom: 12),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFFE0D9F2), Color(0xFFB6F5FB)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
                 ),
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Text(
-                      'Thêm lịch hẹn',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(20),
+                  bottomRight: Radius.circular(20),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Ink(
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE5DBF5),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () => Navigator.pop(context),
                     ),
                   ),
-                ),
-                // Remaining UI code here (Dropdowns, date/time, notes, etc.)
-              ],
+                  const Text(
+                    'Lịch hẹn',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.search),
+                    onPressed: () {},
+                  ),
+                ],
+              ),
             ),
-          ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildDropdown(
+                      'Thú cưng',
+                      selectedPetID,
+                      petList.map((pet) => DropdownMenuItem<String>(
+                        value: pet['PetID']?.toString(),
+                        child: Text(pet['Name'] ?? 'Không tên'),
+                      )).toList(),
+                          (value) => setState(() => selectedPetID = value),
+                    ),
+                    _buildDropdown(
+                      'Dịch vụ',
+                      selectedServiceID,
+                      serviceList.map((s) => DropdownMenuItem<String>(
+                        value: s['ServiceID']?.toString(),
+                        child: Text(s['ServiceName']),
+                      )).toList(),
+                          (value) => setState(() => selectedServiceID = value),
+                    ),
+                    _buildDropdown(
+                      'Nhân viên (tuỳ chọn)',
+                      selectedStaffID,
+                      staffList.map((s) => DropdownMenuItem<String>(
+                        value: s['UserID']?.toString(),
+                        child: Text(s['FullName']),
+                      )).toList(),
+                          (value) => setState(() => selectedStaffID = value),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      readOnly: true,
+                      controller: TextEditingController(
+                        text: selectedDate != null ? selectedDate!.toIso8601String().split('T')[0] : '',
+                      ),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(const Duration(days: 30)),
+                        );
+                        if (picked != null) {
+                          setState(() => selectedDate = picked);
+                          await fetchAvailableTimes(picked);
+                        }
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Ngày hẹn',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                    ),
+                    _buildDropdown(
+                      'Giờ hẹn',
+                      selectedTime,
+                      availableTimes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                          (value) => setState(() => selectedTime = value),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: noteController,
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        labelText: 'Ghi chú (tuỳ chọn)',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      onPressed: submitAppointment,
+                      icon: const Icon(Icons.calendar_today, color: Colors.white),
+                      label: const Text('Đặt lịch hẹn', style: TextStyle(fontSize: 18)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepOrange,
+                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

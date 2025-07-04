@@ -5,14 +5,15 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Invoices;
 use App\Models\Appointment;
-use App\Models\Medication;
+use App\Models\Medications;
 use App\Models\Notification;
 use App\Models\InvoiceMedicine;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class InvoicesController extends Controller
 {
-    // ✅ Tạo hóa đơn từ lịch hẹn và danh sách thuốc
+    // ✅ Tạo hóa đơn
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -37,7 +38,9 @@ class InvoicesController extends Controller
 
         if ($request->medicine_ids) {
             foreach ($request->medicine_ids as $item) {
-                $medicine = Medication::find($item['id']);
+                $medicine = Medications::where('MedicationID', $item['id'])->first();
+                if (!$medicine) continue;
+
                 $lineTotal = $medicine->Price * $item['quantity'];
                 $medicineTotal += $lineTotal;
 
@@ -54,6 +57,7 @@ class InvoicesController extends Controller
         $total = $servicePrice + $medicineTotal;
 
         $invoice = Invoices::create([
+            'InvoiceID' => 'INV' . strtoupper(Str::random(6)),
             'AppointmentID' => $appointment->AppointmentID,
             'PetID' => $appointment->PetID,
             'ServicePrice' => $servicePrice,
@@ -62,7 +66,6 @@ class InvoicesController extends Controller
             'CreatedAt' => now(),
         ]);
 
-        // ✅ Lưu chi tiết thuốc nếu có
         foreach ($medicineDetails as $m) {
             InvoiceMedicine::create([
                 'InvoiceID' => $invoice->InvoiceID,
@@ -93,43 +96,86 @@ class InvoicesController extends Controller
         ], 201);
     }
 
+    // ✅ Danh sách hóa đơn theo role, search, user
+    public function index(Request $request)
+    {
+        $userId = $request->query('user_id');
+        $role = $request->query('role');
+        $search = $request->query('search');
+
+        $query = Invoices::with(['appointment.pet']);
+
+        if ($role !== 'staff') {
+            if (!$userId) return response()->json(['message' => 'Thiếu user_id'], 400);
+
+            $query->whereHas('appointment', fn($q) => $q->where('UserID', $userId));
+        }
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('InvoiceID', 'like', "%$search%")
+                  ->orWhere('AppointmentID', 'like', "%$search%")
+                  ->orWhereHas('appointment.pet', fn($q2) => $q2->where('name', 'like', "%$search%"));
+            });
+        }
+
+        $invoices = $query->get();
+
+        foreach ($invoices as $invoice) {
+            $invoice->name = optional($invoice->appointment->pet)->Name;
+        }
+
+        return response()->json(['data' => $invoices]);
+    }
+
     // ✅ Lấy hóa đơn theo user đăng nhập
     public function getByUser(Request $request)
     {
         $userId = $request->user()->UserID;
 
-        $invoices = Invoices::whereHas('appointment', function ($q) use ($userId) {
-            $q->where('UserID', $userId);
-        })->with('appointment')->get();
+        $invoices = Invoices::with(['appointment.pet'])
+            ->whereHas('appointment', fn($q) => $q->where('UserID', $userId))
+            ->get();
+
+        foreach ($invoices as $invoice) {
+            $invoice->name = optional($invoice->appointment->pet)->Name;
+        }
 
         return response()->json(['data' => $invoices]);
     }
 
-    // ✅ Hiển thị chi tiết một hóa đơn
+    // ✅ Xem chi tiết hóa đơn
     public function show($id)
     {
-        $invoice = Invoices::with(['appointment', 'medicines'])->find($id);
+        $invoice = Invoices::with(['appointment.pet', 'medicines'])
+            ->where('InvoiceID', $id)
+            ->first();
+
         if (!$invoice) return response()->json(['message' => 'Not found'], 404);
 
-        return response()->json($invoice);
+        $invoice->name = optional($invoice->appointment->pet)->Name;
+
+        // Map đúng thuốc
+        $medicines = $invoice->medicines->map(function ($m) {
+            return [
+                'MedicineID' => $m->MedicationID,
+                'Name' => $m->Name,
+                'Price' => $m->Price,
+                'Quantity' => $m->pivot->Quantity,
+            ];
+        });
+
+        $data = $invoice->toArray();
+        $data['medicines'] = $medicines;
+
+        return response()->json($data);
     }
 
-    // ✅ Lấy danh sách tất cả hoặc một hóa đơn cụ thể
-    public function index(Request $request)
-    {
-        if ($request->has('id')) {
-            $invoice = Invoices::with('appointment')->find($request->id);
-            if (!$invoice) return response()->json(['message' => 'Not found'], 404);
-            return response()->json($invoice);
-        }
-
-        return response()->json(Invoices::with('appointment')->get());
-    }
 
     // ✅ Cập nhật hóa đơn
     public function update(Request $request, $id)
     {
-        $invoice = Invoices::find($id);
+        $invoice = Invoices::where('InvoiceID', $id)->first();
         if (!$invoice) return response()->json(['message' => 'Not found'], 404);
 
         $validator = Validator::make($request->all(), [
@@ -143,13 +189,14 @@ class InvoicesController extends Controller
         }
 
         $invoice->update($request->only(['ServicePrice', 'MedicineTotal', 'TotalAmount']));
+
         return response()->json(['message' => 'Updated successfully', 'data' => $invoice], 200);
     }
 
     // ✅ Xóa hóa đơn
     public function destroy($id)
     {
-        $invoice = Invoices::find($id);
+        $invoice = Invoices::where('InvoiceID', $id)->first();
         if (!$invoice) return response()->json(['message' => 'Not found'], 404);
 
         InvoiceMedicine::where('InvoiceID', $invoice->InvoiceID)->delete();

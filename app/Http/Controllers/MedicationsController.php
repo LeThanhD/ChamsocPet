@@ -8,6 +8,26 @@ use App\Models\Medications;
 
 class MedicationsController extends Controller
 {
+ // ✅ API trả toàn bộ thuốc không phân trang cho Flutter
+public function index()
+{
+    try {
+        $all = Medications::select('MedicationID', 'Name', 'Price')->get();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Lấy toàn bộ danh sách thuốc thành công!',
+            'data' => $all
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Lỗi lấy thuốc: ' . $e->getMessage(),
+            'data' => []
+        ], 500);
+    }
+}
+
     // ✅ Lấy danh sách thuốc với tìm kiếm + phân trang
     public function getList(Request $request)
     {

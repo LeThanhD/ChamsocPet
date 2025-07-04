@@ -6,12 +6,28 @@ use Illuminate\Database\Eloquent\Model;
 
 class Payment extends Model
 {
-    protected $table = 'Payments';
+    protected $table = 'payments';
     protected $primaryKey = 'PaymentID';
-    public $incrementing = false;
+     public $incrementing = false;
+    protected $keyType = 'string';
+
     public $timestamps = false;
 
     protected $fillable = [
-        'PaymentID', 'InvoiceID', 'MethodID', 'PaidAmount', 'PaymentTime', 'Note'
-    ];
+    'PaymentID',
+    'InvoiceID',
+    'PaidAmount',
+    'Note',
+    'PaymentTime',
+    'status',
+    'user_confirmed',
+    'UserID'
+];
+
+public function user()
+{
+    return $this->belongsTo(User::class, 'UserID', 'UserID');
+}
+
+
 }

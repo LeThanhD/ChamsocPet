@@ -18,4 +18,20 @@ class InvoiceDetail extends Model
         'Quantity',
         'UnitPrice'
     ];
+
+    public function medication()
+{
+    return $this->belongsTo(Medications::class, 'MedicationID', 'MedicationID');
+}
+
+public function service()
+{
+    return $this->belongsTo(Service::class, 'ServiceID', 'ServiceID');
+}
+
+    public function pet()
+{
+    return $this->belongsTo(Pet::class, 'PetID', 'PetID');
+}
+
 }

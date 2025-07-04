@@ -14,6 +14,7 @@ use App\Models\Prescription;
 use App\Models\Invoice;
 use App\Models\UserLog;
 use App\Models\Notification;
+use App\Services\FirebaseService;
 
 class UsersController extends Controller
 {
@@ -152,6 +153,18 @@ class UsersController extends Controller
         ]);
     }
 
+    public function updateToken(Request $request)
+    {
+        $user = Users::find($request->UserID);
+        if (!$user) return response()->json(['message' => 'User không tồn tại'], 404);
+
+        $user->fcm_token = $request->fcm_token;
+        $user->save();
+
+        return response()->json(['message' => '✅ Token cập nhật thành công']);
+    }
+
+
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -209,7 +222,9 @@ class UsersController extends Controller
             'email'       => $user->Email,
             'citizen_id'  => $user->NationalID,
             'image'       => is_string($user->ProfilePicture) ? $user->ProfilePicture : '',
-        ]);
+            'role'        => $user->Role,
+    ]);
+
     }
 
     public function getList(Request $request)

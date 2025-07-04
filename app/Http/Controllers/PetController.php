@@ -10,16 +10,29 @@ use Illuminate\Http\Request;
 class PetController extends Controller
 {
     public function index(Request $request)
-    {
-        $userId = $request->query('UserID');
+{
+    $userId = $request->query('user_id');
+    $role = $request->query('role');
 
-        if (!$userId) {
-            return response()->json(['error' => 'UserID is required'], 400);
-        }
-
-        $pets = Pet::with(['latestNote', 'user'])->where('UserID', $userId)->get();
-        return response()->json($pets);
+    // Nếu không có user_id hoặc role, trả lỗi
+    if (!$userId || !$role) {
+        return response()->json(['error' => 'Thiếu user_id hoặc role'], 400);
     }
+
+    // Nếu là nhân viên thì trả về toàn bộ thanh toán
+    if ($role === 'staff') {
+        return response()->json(Payment::orderByDesc('PaymentTime')->get());
+    }
+
+    // Nếu là người dùng thì chỉ trả thanh toán của họ
+    $payments = Payment::where('UserID', $userId)
+        ->orderByDesc('PaymentTime')
+        ->get();
+
+    return response()->json($payments);
+}
+
+
 
     // Lấy thú cưng của user cụ thể (chỉ chính chủ mới xem được)
     public function getPetsByUser(Request $request, $userId)

@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Validator;
 
 class InvoiceDetailController extends Controller
 {
-    // 1. Tạo chi tiết hóa đơn
+    // ✅ 1. Tạo chi tiết hóa đơn
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -23,27 +23,48 @@ class InvoiceDetailController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $detail = InvoiceDetail::create($request->all());
-        return response()->json(['message' => 'Created successfully', 'data' => $detail], 201);
+        $detail = InvoiceDetail::create($request->only([
+            'InvoiceID', 'ServiceID', 'MedicationID', 'Quantity', 'UnitPrice'
+        ]));
+
+        return response()->json([
+            'message' => 'Created successfully',
+            'data' => $detail
+        ], 201);
     }
 
-    // 2. Lấy danh sách tất cả hoặc 1 dòng chi tiết
+    // ✅ 2. Lấy tất cả chi tiết hoặc theo id, kèm thông tin thuốc/dịch vụ
     public function index(Request $request)
     {
         if ($request->has('id')) {
-            $detail = InvoiceDetail::find($request->id);
-            if (!$detail) return response()->json(['message' => 'Not found'], 404);
+            $detail = InvoiceDetail::with(['medication', 'service'])->find($request->id);
+            if (!$detail) {
+                return response()->json(['message' => 'Not found'], 404);
+            }
             return response()->json($detail);
         }
 
-        return response()->json(InvoiceDetail::all());
+        $details = InvoiceDetail::with(['medication', 'service'])->get();
+        return response()->json($details);
     }
 
-    // 3. Cập nhật dòng chi tiết
+    // ✅ 3. Lấy chi tiết theo InvoiceID
+    public function getByInvoice($invoiceId)
+    {
+        $details = InvoiceDetail::with(['medication', 'service'])
+            ->where('InvoiceID', $invoiceId)
+            ->get();
+
+        return response()->json($details);
+    }
+
+    // ✅ 4. Cập nhật dòng chi tiết
     public function update(Request $request, $id)
     {
         $detail = InvoiceDetail::find($id);
-        if (!$detail) return response()->json(['message' => 'Not found'], 404);
+        if (!$detail) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
 
         $validator = Validator::make($request->all(), [
             'Quantity' => 'sometimes|integer|min:1',
@@ -55,16 +76,23 @@ class InvoiceDetailController extends Controller
         }
 
         $detail->update($request->only(['Quantity', 'UnitPrice']));
-        return response()->json(['message' => 'Updated successfully', 'data' => $detail], 200);
+
+        return response()->json([
+            'message' => 'Updated successfully',
+            'data' => $detail
+        ]);
     }
 
-    // 4. Xóa dòng chi tiết
+    // ✅ 5. Xóa dòng chi tiết
     public function destroy($id)
     {
         $detail = InvoiceDetail::find($id);
-        if (!$detail) return response()->json(['message' => 'Not found'], 404);
+        if (!$detail) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
 
         $detail->delete();
-        return response()->json(['message' => 'Deleted successfully'], 200);
+
+        return response()->json(['message' => 'Deleted successfully']);
     }
 }

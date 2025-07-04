@@ -18,6 +18,11 @@ use App\Http\Controllers\UserLogsController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\OCRController;
+
+
+// 📸 Xử lý OCR hóa đơn từ ảnh (không cần đăng nhập)
+Route::post('/ocr/extract', [OCRController::class, 'extractText']);
 
 // 🔐 Đăng nhập
 Route::post('/login', [UsersController::class, 'login'])->name('login');
@@ -34,7 +39,7 @@ Route::prefix('/users')->controller(UsersController::class)->group(function () {
     Route::post('/reset-password', 'resetPassword');
     Route::post('/force-reset-password', 'forceResetPassword');
     Route::get('/staff',  'index');
-
+    Route::post('/update-token', 'updateToken');
 });
 
 Route::prefix('/appointments')->controller(AppointmentController::class)->group(function () {
@@ -46,8 +51,33 @@ Route::prefix('/appointments')->controller(AppointmentController::class)->group(
     Route::delete('/{id}', 'destroy');
     Route::get('/check', 'checkConflict');
     Route::get('/check-all', 'getBookedTimes');
+    Route::get('/{id}', 'show');
 
+    // Route::delete('/del/{id}', 'deleteAppointment');
 });
+
+Route::prefix('/payments')->controller(PaymentController::class)->group(function () {
+        Route::get('/', 'index');
+        Route::post('/', 'store');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'destroy');
+        Route::put('/confirm-payment/{id}', 'confirmPayment');
+        Route::post('/mark-as-paid/{id}',  'markAsPaid');
+        Route::get('/pending', 'getPendingPayments');
+        Route::get('/check-paid', 'checkInvoicePaid');
+        // Route::post('approve/{id}', 'approve');
+        Route::put('/{id}/status',  'updateStatus');
+        Route::get('/{id}', 'show');
+    });
+    
+ Route::prefix('/invoices')->controller(InvoicesController::class)->group(function () {
+        Route::get('/', 'index');
+        Route::post('/', 'store');
+        Route::put('/{id}', 'update');
+        Route::delete('/{id}', 'destroy');
+        Route::get('/by-user', 'getByUser');
+        Route::get('/{id}', 'show');
+    });
 
 // 🌐 Dịch vụ chung
 Route::prefix('/services')->controller(ServiceController::class)->group(function () {
@@ -65,19 +95,27 @@ Route::prefix('/medications')->controller(MedicationsController::class)->group(f
     Route::post('/', 'create');
     Route::delete('/{id}', 'delete');
     Route::put('/{id}', 'update');
+    Route::get('/in', 'index');
 });
 
 Route::prefix('/pets')->controller(PetController::class)->group(function () {
     Route::get('/all', 'getAllPetsForStaff');
     Route::delete('/{id}', 'destroy');
     Route::put('/{id}', 'update');
+    Route::get('/{id}','show');
+
 });
 
- Route::prefix('/notifications')->controller(NotificationController::class)->group(function () {
-        Route::get('/', 'index');
-        Route::put('/{id}/read', 'markAsRead');
-        Route::delete('/{id}', 'destroy');
+    Route::prefix('/notifications')->controller(NotificationController::class)->group(function () {
+        Route::get('/', 'index');                    
+        Route::post('/', 'store');                  
+        Route::post('/send/{userId}', 'send');       
+        Route::put('/{id}/read', 'markAsRead');     
+        Route::delete('/{id}', 'destroy');    
+        Route::get('/{user_id}', 'getUserNotifications');
+       
     });
+
 
 Route::prefix('/appointment-history')->controller(AppointmentHistoryController::class)->group(function () {
     Route::get('/all', 'getAllHistories');
@@ -90,12 +128,17 @@ Route::prefix('/appointment-history')->controller(AppointmentHistoryController::
 // ✨ Khách hàng hoặc nhân viên (auth)
 Route::middleware(['auth:sanctum'])->group(function () {
 
+    Route::prefix('/payments')->controller(PaymentController::class)->group(function () {
+        Route::post('approve/{id}', 'approve');
+    });
+    
     Route::prefix('/pets')->controller(PetController::class)->group(function () {
         Route::get('/', 'index');
         Route::get('/user/{userId}', 'getPetsByUser');
         Route::post('/', 'store');
     });
 
+    
     Route::prefix('/medications')->controller(MedicationsController::class)->group(function () {
         Route::get('/', 'getList');
         Route::get('/{id}', 'getDetail');
@@ -104,9 +147,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 // 👨‍⚕️ Nhân viên
 Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
-    Route::prefix('/notifications')->controller(NotificationController::class)->group(function () {
-        Route::post('/', 'store');
-    });
+    // Route::prefix('/notifications')->controller(NotificationController::class)->group(function () {
+        
+    // });
 
     Route::prefix('/medications')->controller(MedicationsController::class)->group(function () {
         Route::put('/{id}', 'update');
@@ -124,17 +167,9 @@ Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
     Route::prefix('/appointments')->controller(AppointmentController::class)->group(function () {
         Route::get('/', 'index');
         Route::put('/{id}', 'update');
-        Route::delete('/{id}', 'destroy');
+        // Route::delete('/{id}', 'destroy');
         Route::put('/end/{id}', 'endAppointment');
-    });
-
-    Route::prefix('/invoices')->controller(InvoicesController::class)->group(function () {
-        Route::get('/', 'index');
-        Route::post('/', 'store');
-        Route::put('/{id}', 'update');
-        Route::delete('/{id}', 'destroy');
-        Route::get('/by-user', 'getByUser');
-        Route::get('/{id}', 'show');
+        Route::post('/{id}/approve', 'approve');
     });
 
     Route::prefix('/invoice-details')->controller(InvoiceDetailController::class)->group(function () {
@@ -191,13 +226,6 @@ Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
     });
 
     Route::prefix('/payment-methods')->controller(PaymentMethodController::class)->group(function () {
-        Route::get('/', 'index');
-        Route::post('/', 'store');
-        Route::put('/{id}', 'update');
-        Route::delete('/{id}', 'destroy');
-    });
-
-    Route::prefix('/payments')->controller(PaymentController::class)->group(function () {
         Route::get('/', 'index');
         Route::post('/', 'store');
         Route::put('/{id}', 'update');

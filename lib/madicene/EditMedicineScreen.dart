@@ -60,7 +60,7 @@ class _EditMedicineScreenState extends State<EditMedicineScreen> {
       return;
     }
 
-    final uri = Uri.parse('http://192.168.0.108:8000/api/medications/${widget.medicine.id}');
+    final uri = Uri.parse('http://10.24.67.249:8000/api/medications/${widget.medicine.id}');
     final response = await http.put(
       uri,
       headers: {

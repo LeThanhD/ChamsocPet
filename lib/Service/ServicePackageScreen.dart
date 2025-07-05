@@ -63,7 +63,7 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
 
   Future<List<ServiceItem>> fetchAllServices({String query = ""}) async {
     final uri = Uri.parse(
-        'http://192.168.0.108:8000/api/services${query.isNotEmpty ? "?search=$query" : ""}');
+        'http://10.24.67.249:8000/api/services${query.isNotEmpty ? "?search=$query" : ""}');
     final response =
     await http.get(uri, headers: {'Accept': 'application/json'});
 

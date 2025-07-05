@@ -42,10 +42,10 @@ class AppointmentPageState extends State<AppointmentPage> {
     String url;
 
     if (role == 'staff') {
-      url = 'http://192.168.0.108:8000/api/appointments/every?role=staff';
+      url = 'http://10.24.67.249:8000/api/appointments/every?role=staff';
       if (query.isNotEmpty) url += '&search=$query';
     } else {
-      url = 'http://192.168.0.108:8000/api/appointments/all?UserID=$userId';
+      url = 'http://10.24.67.249:8000/api/appointments/all?UserID=$userId';
       if (query.isNotEmpty) url += '&search=$query';
     }
 
@@ -80,7 +80,7 @@ class AppointmentPageState extends State<AppointmentPage> {
   // Future<void> createNotification(String userId, String title, String message) async {
   //   try {
   //     final response = await http.post(
-  //       Uri.parse('http://192.168.0.108:8000/api/notifications'),
+  //       Uri.parse('http://10.24.67.249:8000/api/notifications'),
   //       headers: {
   //         'Accept': 'application/json',
   //         'Content-Type': 'application/json',
@@ -119,7 +119,7 @@ class AppointmentPageState extends State<AppointmentPage> {
 
     try {
       final response = await http.delete(
-        Uri.parse('http://192.168.0.108:8000/api/appointments/$appointmentId'),
+        Uri.parse('http://10.24.67.249:8000/api/appointments/$appointmentId'),
         headers: {'Accept': 'application/json'},
       );
 
@@ -145,7 +145,7 @@ class AppointmentPageState extends State<AppointmentPage> {
 
   Future<List<dynamic>> fetchMedications() async {
     final response = await http.get(
-      Uri.parse('http://192.168.0.108:8000/api/medications/in'),
+      Uri.parse('http://10.24.67.249:8000/api/medications/in'),
       headers: {'Accept': 'application/json'},
     );
     if (response.statusCode == 200) {
@@ -168,7 +168,7 @@ class AppointmentPageState extends State<AppointmentPage> {
 
       if (status == 'Đã duyệt') {
         final res = await http.put(
-          Uri.parse('http://192.168.0.108:8000/api/appointments/update-status/$appointmentId'),
+          Uri.parse('http://10.24.67.249:8000/api/appointments/update-status/$appointmentId'),
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
@@ -200,15 +200,15 @@ class AppointmentPageState extends State<AppointmentPage> {
           builder: (_) => SelectMedicineDialog(meds),
         );
 
-        if (selectedMeds == null || selectedMeds.isEmpty) {
+        if (selectedMeds == null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('❗Vui lòng chọn thuốc để kết thúc')),
+            const SnackBar(content: Text('❗Bạn đã hủy chọn thuốc')),
           );
           return;
         }
 
         final detailRes = await http.get(
-          Uri.parse('http://192.168.0.108:8000/api/appointments/$appointmentId'),
+          Uri.parse('http://10.24.67.249:8000/api/appointments/$appointmentId'),
           headers: {'Accept': 'application/json'},
         );
 
@@ -229,7 +229,7 @@ class AppointmentPageState extends State<AppointmentPage> {
 
         // Gửi hóa đơn
         final invoiceRes = await http.post(
-          Uri.parse('http://192.168.0.108:8000/api/invoices'),
+          Uri.parse('http://10.24.67.249:8000/api/invoices'),
           headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
           body: jsonEncode({'appointment_id': appointmentId, 'medicine_ids': medIds}),
         );
@@ -243,7 +243,7 @@ class AppointmentPageState extends State<AppointmentPage> {
 
         // Cập nhật trạng thái
         final updateRes = await http.put(
-          Uri.parse('http://192.168.0.108:8000/api/appointments/update-status/$appointmentId'),
+          Uri.parse('http://10.24.67.249:8000/api/appointments/update-status/$appointmentId'),
           headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
           body: jsonEncode({'Status': 'Kết thúc'}),
         );
@@ -251,7 +251,7 @@ class AppointmentPageState extends State<AppointmentPage> {
         if (updateRes.statusCode == 200) {
           // Ghi lịch sử
           final historyRes = await http.post(
-            Uri.parse('http://192.168.0.108:8000/api/appointment-history'),
+            Uri.parse('http://10.24.67.249:8000/api/appointment-history'),
             headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
             body: jsonEncode({
               'AppointmentID': appointmentId,
@@ -275,7 +275,7 @@ class AppointmentPageState extends State<AppointmentPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("✅ Đã kết thúc lịch hẹn và tạo hóa đơn thành công")),
           );
-          Navigator.pushReplacement(
+          Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AppointmentHistoryPage()),
           );

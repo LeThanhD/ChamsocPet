@@ -45,10 +45,10 @@ class _ManageScreen extends State<ManageScreen> {
 
     if (role == 'staff') {
       uri = Uri.parse(
-          'http://192.168.0.108:8000/api/pets/all?role=staff${query.isNotEmpty ? '&search=$query' : ''}');
+          'http://10.24.67.249:8000/api/pets/all?role=staff${query.isNotEmpty ? '&search=$query' : ''}');
     } else {
       uri = Uri.parse(
-          'http://192.168.0.108:8000/api/pets/user/$userId${query.isNotEmpty ? '?search=$query' : ''}');
+          'http://10.24.67.249:8000/api/pets/user/$userId${query.isNotEmpty ? '?search=$query' : ''}');
     }
 
     final headers = {
@@ -94,7 +94,7 @@ class _ManageScreen extends State<ManageScreen> {
     final userId = prefs.getString('user_id');
 
     final response = await http.delete(
-      Uri.parse('http://192.168.0.108:8000/api/pets/$petId'),
+      Uri.parse('http://10.24.67.249:8000/api/pets/$petId'),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -238,6 +238,8 @@ class _ManageScreen extends State<ManageScreen> {
             MaterialPageRoute(builder: (context) => AddPetScreen()),
           );
           if (result == 'added') {
+            final prefs = await SharedPreferences.getInstance();
+            role = prefs.getString('role');
             await fetchPets();
           }
         },

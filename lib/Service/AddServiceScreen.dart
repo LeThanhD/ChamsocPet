@@ -17,7 +17,7 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
   Future<void> submitService() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final url = Uri.parse('http://192.168.0.108:8000/api/services');
+    final url = Uri.parse('http://10.24.67.249:8000/api/services');
 
     final response = await http.post(
       url,

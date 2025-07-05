@@ -51,7 +51,7 @@ class _EditPetScreenState extends State<EditPetScreen> {
 
   Future<void> _updatePet() async {
     final petId = widget.pet['PetID'];
-    final url = Uri.parse('http://192.168.0.108:8000/api/pets/$petId');
+    final url = Uri.parse('http://10.24.67.249:8000/api/pets/$petId');
 
     final Map<String, dynamic> data = {
       'Name': nameController.text,

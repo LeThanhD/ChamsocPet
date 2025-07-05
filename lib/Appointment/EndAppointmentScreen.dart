@@ -44,7 +44,7 @@ class _EndAppointmentScreenState extends State<EndAppointmentScreen> {
     if (token == null) return;
 
     final response = await http.get(
-      Uri.parse('http://192.168.0.108:8000/api/medications'),
+      Uri.parse('http://10.24.67.249:8000/api/medications'),
       headers: {
         'Accept': 'application/json',
         'Authorization': 'Bearer $token',
@@ -85,7 +85,7 @@ class _EndAppointmentScreenState extends State<EndAppointmentScreen> {
     }
 
     final endRes = await http.put(
-      Uri.parse('http://192.168.0.108:8000/api/appointments/end/${widget.appointmentId}'),
+      Uri.parse('http://10.24.67.249:8000/api/appointments/end/${widget.appointmentId}'),
       headers: {'Authorization': 'Bearer $token'},
     );
 
@@ -98,7 +98,7 @@ class _EndAppointmentScreenState extends State<EndAppointmentScreen> {
     }
 
     final res = await http.post(
-      Uri.parse('http://192.168.0.108:8000/api/invoices'),
+      Uri.parse('http://10.24.67.249:8000/api/invoices'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -123,7 +123,7 @@ class _EndAppointmentScreenState extends State<EndAppointmentScreen> {
           .join(', ');
 
       await http.post(
-        Uri.parse('http://192.168.0.108:8000/api/notifications'),
+        Uri.parse('http://10.24.67.249:8000/api/notifications'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

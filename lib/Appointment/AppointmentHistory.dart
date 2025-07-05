@@ -30,8 +30,8 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
     userId = prefs.getString('user_id');
 
     String url = role == 'staff'
-        ? 'http://192.168.0.108:8000/api/appointment-history/all'
-        : 'http://192.168.0.108:8000/api/appointment-history?UserID=$userId';
+        ? 'http://10.24.67.249:8000/api/appointment-history/all'
+        : 'http://10.24.67.249:8000/api/appointment-history?UserID=$userId';
 
     try {
       final response = await http.get(Uri.parse(url), headers: {
@@ -57,6 +57,7 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF2F3F5),
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(60),
         child: Container(
@@ -71,7 +72,7 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  icon: const Icon(Icons.arrow_back, color: Colors.black),
                   onPressed: () => Navigator.pop(context),
                 ),
                 const Expanded(
@@ -79,8 +80,8 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
                     child: Text(
                       'Lịch sử hẹn',
                       style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
+                        color: Colors.black,
+                        fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -96,8 +97,9 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
           ? const Center(child: CircularProgressIndicator())
           : historyAppointments.isEmpty
           ? const Center(child: Text('Không có lịch sử hẹn nào.'))
-          : ListView.builder(
+          : ListView.separated(
         padding: const EdgeInsets.all(12),
+        separatorBuilder: (_, __) => const Divider(height: 1),
         itemCount: historyAppointments.length,
         itemBuilder: (context, index) {
           final item = historyAppointments[index];
@@ -107,59 +109,35 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
           final service = appointment['service'] ?? {};
           final staff = appointment['staff'] ?? {};
 
-          return GestureDetector(
+          return ListTile(
+            tileColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      AppointmentDetailPage(appointment: appointment),
+                  builder: (_) => AppointmentDetailPage(appointment: appointment),
                 ),
               );
             },
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFE1F5FE), Color(0xFFF3E5F5)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.3),
-                    blurRadius: 6,
-                    offset: const Offset(2, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '👤 Chủ: ${user['FullName'] ?? 'Không rõ'}',
-                    style:
-                    const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Text('🐾 Thú cưng: ${pet['Name'] ?? 'Không rõ'}'),
-                  const SizedBox(height: 4),
-                  Text(
-                      '📅 Ngày: ${appointment['AppointmentDate'] ?? ''}'),
-                  Text(
-                      '🕒 Giờ: ${appointment['AppointmentTime'] ?? ''}'),
-                  Text(
-                      '🧴 Dịch vụ: ${service['ServiceName'] ?? 'Không có'}'),
-                  Text(
-                    '👨‍🔧 Nhân viên: ${staff['FullName'] ?? staff['name'] ?? 'Không rõ'}',
-                  ),
-                  Text(
-                    '📝 Ghi chú: ${appointment['Reason'] ?? 'Không có'}',
-                  ),
-                ],
-              ),
+            title: Text(
+              '${pet['Name'] ?? 'Không rõ'} - ${service['ServiceName'] ?? 'Dịch vụ'}',
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                Text('👤 Chủ: ${user['FullName'] ?? 'Không rõ'}'),
+                Text('📅 Ngày: ${appointment['AppointmentDate'] ?? ''}'),
+                Text('🕒 Giờ: ${appointment['AppointmentTime'] ?? ''}'),
+                Text('👨‍🔧 Nhân viên: ${staff['FullName'] ?? staff['name'] ?? 'Không rõ'}'),
+                if ((appointment['Reason'] ?? '').toString().isNotEmpty)
+                  Text('📝 Ghi chú: ${appointment['Reason']}'),
+              ],
+            ),
+            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
           );
         },
       ),

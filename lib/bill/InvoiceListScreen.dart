@@ -41,8 +41,8 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     userId = prefs.getString('user_id');
 
     String baseUrl = role == 'staff'
-        ? 'http://192.168.0.108:8000/api/invoices?role=staff'
-        : 'http://192.168.0.108:8000/api/invoices?user_id=$userId&role=user';
+        ? 'http://10.24.67.249:8000/api/invoices?role=staff'
+        : 'http://10.24.67.249:8000/api/invoices?user_id=$userId&role=user';
 
     if (searchQuery != null && searchQuery!.isNotEmpty) {
       baseUrl += '&search=${Uri.encodeComponent(searchQuery!)}';

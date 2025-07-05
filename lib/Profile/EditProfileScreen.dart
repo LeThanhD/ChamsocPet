@@ -34,7 +34,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     userId = prefs.getString('user_id') ?? '';
     if (userId.isEmpty) return;
 
-    final response = await http.get(Uri.parse('http://192.168.0.108:8000/api/users/detail/$userId'));
+    final response = await http.get(Uri.parse('http://10.24.67.249:8000/api/users/detail/$userId'));
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       setState(() {
@@ -49,7 +49,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         final rawImage = data['image'] ?? '';
         imageUrl = rawImage.startsWith('http')
             ? rawImage
-            : 'http://192.168.0.108:8000/storage/' + rawImage;
+            : 'http://10.24.67.249:8000/storage/' + rawImage;
       });
     }
   }
@@ -65,7 +65,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> updateUser() async {
-    final uri = Uri.parse('http://192.168.0.108:8000/api/users/$userId');
+    final uri = Uri.parse('http://10.24.67.249:8000/api/users/$userId');
     final request = http.MultipartRequest('POST', uri)
       ..fields['full_name'] = nameController.text
       ..fields['birth_date'] = birthController.text

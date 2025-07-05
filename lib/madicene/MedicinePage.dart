@@ -51,7 +51,7 @@ class _MedicinePageState extends State<MedicinePage> {
     setState(() => isLoading = true);
     final token = await _getToken();
 
-    final uri = Uri.parse('http://192.168.0.108:8000/api/medications')
+    final uri = Uri.parse('http://10.24.67.249:8000/api/medications')
         .replace(queryParameters: {
       if (searchQuery.isNotEmpty) 'search': searchQuery,
       'page': '1',

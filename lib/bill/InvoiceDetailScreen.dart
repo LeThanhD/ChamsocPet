@@ -35,7 +35,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 
   Future<void> fetchInvoiceDetail() async {
     final response = await http.get(
-      Uri.parse('http://192.168.0.108:8000/api/invoices/${widget.invoiceId}'),
+      Uri.parse('http://10.24.67.249:8000/api/invoices/${widget.invoiceId}'),
       headers: {'Accept': 'application/json'},
     );
 
@@ -50,7 +50,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   }
 
   Future<void> checkIfPaid() async {
-    final uri = Uri.parse('http://192.168.0.108:8000/api/payments/check-paid?invoice_id=${widget.invoiceId}');
+    final uri = Uri.parse('http://10.24.67.249:8000/api/payments/check-paid?invoice_id=${widget.invoiceId}');
     final response = await http.get(uri, headers: {'Accept': 'application/json'});
 
     if (response.statusCode == 200) {

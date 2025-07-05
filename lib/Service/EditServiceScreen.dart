@@ -31,7 +31,7 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    final url = Uri.parse('http://192.168.0.108:8000/api/services/${widget.service.id}');
+    final url = Uri.parse('http://10.24.67.249:8000/api/services/${widget.service.id}');
     try {
       final response = await http.put(
         url,

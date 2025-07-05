@@ -46,7 +46,7 @@ class _MomoPaymentScreenState extends State<MomoPaymentScreen> {
   }
 
   Future<void> createPayment() async {
-    final uri = Uri.parse("http://192.168.0.108:8000/api/payments");
+    final uri = Uri.parse("http://10.24.67.249:8000/api/payments");
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('user_id');
 

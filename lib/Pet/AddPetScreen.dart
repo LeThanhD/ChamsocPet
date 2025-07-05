@@ -16,10 +16,10 @@ class _AddPetScreenState extends State<AddPetScreen> {
   final dobController = TextEditingController();
   final originController = TextEditingController();
   final lastVaccineDateController = TextEditingController();
+  final breedController = TextEditingController();
 
   String? selectedGender;
   String? selectedSpecies;
-  String? selectedBreed;
   String? selectedFurType;
   bool vaccinated = false;
   bool trained = false;
@@ -48,7 +48,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
         selectedGender == null ||
         colorController.text.isEmpty ||
         selectedSpecies == null ||
-        selectedBreed == null ||
+        breedController.text.isEmpty ||
         dobController.text.isEmpty ||
         weightController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -74,7 +74,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
       return;
     }
 
-    final uri = Uri.parse('http://192.168.0.108:8000/api/pets');
+    final uri = Uri.parse('http://10.24.67.249:8000/api/pets');
 
     final response = await http.post(
       uri,
@@ -88,7 +88,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
         'Gender': selectedGender,
         'FurColor': colorController.text,
         'Species': selectedSpecies,
-        'Breed': selectedBreed,
+        'Breed': breedController.text,
         'BirthDate': dobController.text,
         'Weight': double.tryParse(weightController.text) ?? 0,
         'UserID': userId,
@@ -96,7 +96,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
         'fur_type': selectedFurType,
         'vaccinated': vaccinated ? 1 : 0,
         'trained': trained ? 1 : 0,
-        'last_vaccine_date': lastVaccineDateController.text.isNotEmpty
+        'last_vaccine_date': vaccinated && lastVaccineDateController.text.isNotEmpty
             ? lastVaccineDateController.text
             : null,
         'HealthStatus': healthController.text,
@@ -105,7 +105,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
 
     if (response.statusCode == 201) {
       setState(() => isLoading = false);
-      Navigator.pop(context, 'added'); // ✅ quay lại ManagePetScreen và reload danh sách
+      Navigator.pop(context, 'added');
     } else {
       setState(() => isLoading = false);
       showDialog(
@@ -121,7 +121,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
   Future<void> _pickDate(TextEditingController controller) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime(2020),
+      initialDate: DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
     );
@@ -155,10 +155,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
                     ),
                     const Expanded(
                       child: Center(
-                        child: Text(
-                          'Thêm thú cưng',
-                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                        ),
+                        child: Text('Thêm thú cưng', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(width: 48),
@@ -184,25 +181,20 @@ class _AddPetScreenState extends State<AddPetScreen> {
                   label: 'Loài',
                   items: breedOptions.keys.toList(),
                   selectedValue: selectedSpecies,
-                  onChanged: (value) => setState(() {
-                    selectedSpecies = value;
-                    selectedBreed = null;
-                  }),
+                  onChanged: (value) {
+                    setState(() {
+                      selectedSpecies = value;
+                      breedController.clear();
+                    });
+                  },
                 ),
-                _buildDropdownField(
-                  label: 'Giống',
-                  items: selectedSpecies != null ? breedOptions[selectedSpecies]! : [],
-                  selectedValue: selectedBreed,
-                  onChanged: (value) => setState(() => selectedBreed = value),
-                ),
+                _buildTextField('Giống (có thể nhập tay)', breedController),
                 Row(
                   children: [
                     Expanded(
                       child: GestureDetector(
                         onTap: () => _pickDate(dobController),
-                        child: AbsorbPointer(
-                          child: _buildTextField('Ngày sinh', dobController),
-                        ),
+                        child: AbsorbPointer(child: _buildTextField('Ngày sinh', dobController)),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -221,14 +213,19 @@ class _AddPetScreenState extends State<AddPetScreen> {
                   children: [
                     Expanded(
                       child: SwitchListTile(
-                        title: const Text("Đã tiêm ngừa"),
+                        title: const Text('Đã tiêm ngừa'),
                         value: vaccinated,
-                        onChanged: (value) => setState(() => vaccinated = value),
+                        onChanged: (value) {
+                          setState(() {
+                            vaccinated = value;
+                            if (!vaccinated) lastVaccineDateController.clear();
+                          });
+                        },
                       ),
                     ),
                     Expanded(
                       child: SwitchListTile(
-                        title: const Text("Đã huấn luyện"),
+                        title: const Text('Đã huấn luyện'),
                         value: trained,
                         onChanged: (value) => setState(() => trained = value),
                       ),
@@ -236,8 +233,9 @@ class _AddPetScreenState extends State<AddPetScreen> {
                   ],
                 ),
                 GestureDetector(
-                  onTap: () => _pickDate(lastVaccineDateController),
+                  onTap: vaccinated ? () => _pickDate(lastVaccineDateController) : null,
                   child: AbsorbPointer(
+                    absorbing: !vaccinated,
                     child: _buildTextField('Ngày tiêm gần nhất', lastVaccineDateController),
                   ),
                 ),
@@ -251,9 +249,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
                       backgroundColor: Colors.deepOrange,
                       foregroundColor: Colors.white,
                       elevation: 4,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
                       textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),

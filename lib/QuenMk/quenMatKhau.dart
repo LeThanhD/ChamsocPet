@@ -218,7 +218,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => isLoading = true);
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.0.108:8000/api/users/force-reset-password'),
+        Uri.parse('http://10.24.67.249:8000/api/users/force-reset-password'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'username': username,

@@ -45,7 +45,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
   Future<void> fetchPets() async {
     final token = await getToken();
     final response = await http.get(
-      Uri.parse('http://192.168.0.108:8000/api/pets/user/$userId'),
+      Uri.parse('http://10.24.67.249:8000/api/pets/user/$userId'),
       headers: {
         'Accept': 'application/json',
         'Authorization': 'Bearer $token',
@@ -66,7 +66,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
 
   Future<void> fetchServices() async {
     final response = await http.get(
-      Uri.parse('http://192.168.0.108:8000/api/services/all'),
+      Uri.parse('http://10.24.67.249:8000/api/services/all'),
       headers: {'Accept': 'application/json'},
     );
 
@@ -85,7 +85,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
   Future<void> fetchStaff() async {
     final token = await getToken();
     final response = await http.get(
-      Uri.parse('http://192.168.0.108:8000/api/users/staff?role=staff'),
+      Uri.parse('http://10.24.67.249:8000/api/users/staff?role=staff'),
       headers: {
         'Accept': 'application/json',
         'Authorization': 'Bearer $token',
@@ -106,7 +106,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
   Future<void> fetchAvailableTimes(DateTime date) async {
     final dateStr = date.toIso8601String().split('T')[0];
     final response = await http.get(
-      Uri.parse('http://192.168.0.108:8000/api/appointments/check-all?date=$dateStr'),
+      Uri.parse('http://10.24.67.249:8000/api/appointments/check-all?date=$dateStr'),
       headers: {'Accept': 'application/json'},
     );
 
@@ -141,7 +141,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
     }
 
     final response = await http.post(
-      Uri.parse('http://192.168.0.108:8000/api/appointments'),
+      Uri.parse('http://10.24.67.249:8000/api/appointments'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -160,7 +160,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
 
     if (response.statusCode == 201) {
       if (!mounted) return;
-      Navigator.pop(context, true); // ✅ Chỉ quay lại
+      Navigator.pop(context, true);
     }
   }
 

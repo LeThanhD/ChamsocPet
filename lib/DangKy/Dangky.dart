@@ -49,7 +49,7 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
   }
 
   Future<void> submitToAPI(Map<String, dynamic> data) async {
-    final url = Uri.parse('http://192.168.0.108:8000/api/users');
+    final url = Uri.parse('http://10.24.67.249:8000/api/users');
 
     try {
       final response = await http.post(

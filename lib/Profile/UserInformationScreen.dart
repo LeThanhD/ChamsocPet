@@ -33,7 +33,7 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
     userId = prefs.getString('user_id') ?? '';
     if (userId.isEmpty) return;
 
-    final url = Uri.parse('http://192.168.0.108:8000/api/users/detail/$userId');
+    final url = Uri.parse('http://10.24.67.249:8000/api/users/detail/$userId');
     final response = await http.get(url);
 
     if (response.statusCode == 200) {
@@ -49,7 +49,7 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
         final rawImage = data['image'] ?? '';
         imageUrl = rawImage.startsWith('http')
             ? rawImage
-            : 'http://192.168.0.108:8000/storage/images/$rawImage';
+            : 'http://10.24.67.249:8000/storage/images/$rawImage';
       });
     }
   }

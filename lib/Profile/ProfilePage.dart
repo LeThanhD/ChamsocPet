@@ -39,7 +39,7 @@ class _ProfilePageState extends State<ProfilePage> {
         return;
       }
 
-      final url = Uri.parse('http://192.168.0.108:8000/api/users/detail/$userId');
+      final url = Uri.parse('http://10.24.67.249:8000/api/users/detail/$userId');
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -55,7 +55,7 @@ class _ProfilePageState extends State<ProfilePage> {
           userRole = roleFromAPI;
           imageUrl = rawImage.startsWith('http')
               ? rawImage
-              : 'http://192.168.0.108:8000/storage/$rawImage';
+              : 'http://10.24.67.249:8000/storage/$rawImage';
           isLoading = false;
         });
       } else {
@@ -75,7 +75,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     try {
-      await http.post(Uri.parse('http://192.168.0.108:8000/api/logout'), headers: {
+      await http.post(Uri.parse('http://10.24.67.249:8000/api/logout'), headers: {
         'Accept': 'application/json',
       });
     } catch (_) {}
@@ -178,7 +178,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     title: 'Thanh toán hóa đơn',
                     onTap: () {
                       Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => const InvoiceListScreen()));
+                          builder: (_) => const AdminApprovalScreen()));
                     },
                   ),
                 // _buildMenuTile(

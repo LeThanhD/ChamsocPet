@@ -31,7 +31,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     setState(() => isLoading = true);
 
     final response = await http.post(
-      Uri.parse('http://192.168.0.108:8000/api/medications'),
+      Uri.parse('http://10.24.67.249:8000/api/medications'),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',

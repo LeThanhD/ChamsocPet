@@ -29,5 +29,10 @@ public function user()
     return $this->belongsTo(User::class, 'UserID', 'UserID');
 }
 
+public function invoice()
+{
+    return $this->belongsTo(Invoices::class, 'InvoiceID', 'InvoiceID');
+}
+
 
 }

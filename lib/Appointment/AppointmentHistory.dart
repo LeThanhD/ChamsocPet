@@ -30,8 +30,8 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
     userId = prefs.getString('user_id');
 
     String url = role == 'staff'
-        ? 'http://10.24.67.249:8000/api/appointment-history/all'
-        : 'http://10.24.67.249:8000/api/appointment-history?UserID=$userId';
+        ? 'http://192.168.0.108:8000/api/appointment-history/all'
+        : 'http://192.168.0.108:8000/api/appointment-history?UserID=$userId';
 
     try {
       final response = await http.get(Uri.parse(url), headers: {
@@ -106,8 +106,22 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
           final appointment = item['appointment'] ?? {};
           final user = appointment['user'] ?? {};
           final pet = appointment['pet'] ?? {};
-          final service = appointment['service'] ?? {};
           final staff = appointment['staff'] ?? {};
+          final services = appointment['services'];
+
+          String serviceNames;
+          try {
+            if (services is List) {
+              serviceNames = services.map((s) => s['ServiceName'] ?? '').join(', ');
+            } else if (services is Map) {
+              serviceNames = services['ServiceName'] ?? '';
+            } else {
+              serviceNames = 'Không rõ dịch vụ';
+            }
+          } catch (e) {
+            print('❌ Lỗi parse services: $e');
+            serviceNames = 'Không rõ dịch vụ';
+          }
 
           return ListTile(
             tileColor: Colors.white,
@@ -122,7 +136,7 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
               );
             },
             title: Text(
-              '${pet['Name'] ?? 'Không rõ'} - ${service['ServiceName'] ?? 'Dịch vụ'}',
+              '${pet['Name'] ?? 'Không rõ'} - $serviceNames',
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             subtitle: Column(
@@ -140,7 +154,7 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
           );
         },
-      ),
+      )
     );
   }
 }

@@ -31,7 +31,7 @@ class _PageScreenState extends State<PageScreen> {
     super.initState();
     pages = [
       HomeContent(),
-      AppointmentPage(key: _appointmentKey, appointmentData: {}),
+      AppointmentPage(key: _appointmentKey),
       const ManageScreen(),
       const ProfilePage(),
     ];

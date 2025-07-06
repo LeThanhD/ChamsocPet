@@ -74,7 +74,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
       return;
     }
 
-    final uri = Uri.parse('http://10.24.67.249:8000/api/pets');
+    final uri = Uri.parse('http://192.168.0.108:8000/api/pets');
 
     final response = await http.post(
       uri,

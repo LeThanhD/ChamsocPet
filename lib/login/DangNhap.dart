@@ -24,7 +24,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => isLoading = true);
 
     try {
-      final url = Uri.parse('http://10.24.67.249:8000/api/login');
+      final url = Uri.parse('http://192.168.0.108:8000/api/login');
       final response = await http.post(
         url,
         headers: {
@@ -53,7 +53,7 @@ class _LoginPageState extends State<LoginPage> {
         final prefs = await SharedPreferences.getInstance();
         final user = data['user'];
 
-        await prefs.setString('token', data['token']);http://10.24.67.249:8000
+        await prefs.setString('token', data['token']);http://192.168.0.108:8000
         await prefs.setString('username', user['Username'] ?? '');
         await prefs.setString('role', user['Role'] ?? '');
 
@@ -61,7 +61,7 @@ class _LoginPageState extends State<LoginPage> {
         final fcmToken = await FirebaseMessaging.instance.getToken();
         if (fcmToken != null && user['UserID'] != null) {
           final updateTokenRes = await http.post(
-            Uri.parse('http://10.24.67.249:8000/api/users/update-token'),
+            Uri.parse('http://192.168.0.108:8000/api/users/update-token'),
             headers: {'Accept': 'application/json'},
             body: {
               'UserID': user['UserID'].toString(),

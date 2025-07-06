@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'EditPetScreen.dart';
+import 'PetHistoryScreen.dart';  // Import màn hình lịch sử thuốc & dịch vụ
 
 class PetDetailScreen extends StatelessWidget {
   final Map<String, dynamic> pet;
@@ -16,7 +17,6 @@ class PetDetailScreen extends StatelessWidget {
     final String weight = pet['Weight']?.toString() ?? 'Không rõ';
     final String dob = pet['BirthDate'] ?? 'Không rõ';
 
-    // ✅ Sửa để tương thích cả latestNote và latest_note
     final String healthNote = (pet['latestNote'] ?? pet['latest_note'])?['Content'] ?? 'Không';
 
     final String furType = pet['fur_type'] ?? 'Không rõ';
@@ -115,6 +115,31 @@ class PetDetailScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (context) => EditPetScreen(pet: pet),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepPurple,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(Icons.history),
+                      label: const Text("Xem lịch sử thuốc & dịch vụ", style: TextStyle(fontSize: 16)),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PetHistoryScreen(petId: pet['PetID']),
                           ),
                         );
                       },

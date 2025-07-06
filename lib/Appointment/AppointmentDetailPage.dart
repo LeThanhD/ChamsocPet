@@ -9,7 +9,20 @@ class AppointmentDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = appointment['user'] ?? {};
     final pet = appointment['pet'] ?? {};
-    final service = appointment['service'] ?? {};
+    final servicesRaw = appointment['services'] ?? [];
+
+    // Chuyển về List<Map> cho chắc chắn
+    final List<Map<String, dynamic>> services = [];
+    if (servicesRaw is List) {
+      for (var s in servicesRaw) {
+        if (s is Map<String, dynamic>) {
+          services.add(s);
+        } else if (s is Map) {
+          services.add(Map<String, dynamic>.from(s));
+        }
+      }
+    }
+
     final staff = appointment['staff'] ?? {};
 
     return Scaffold(
@@ -49,8 +62,7 @@ class AppointmentDetailPage extends StatelessWidget {
                 ]),
                 const SizedBox(height: 16),
                 _buildSectionCard('💼 Thông tin dịch vụ', [
-                  _buildDetailRow('Dịch vụ', service['ServiceName']),
-                  _buildDetailRow('Giá', '${service['Price'] ?? ''} VNĐ'),
+                  _buildServicesList(services),
                 ]),
                 const SizedBox(height: 16),
                 _buildSectionCard('👨‍🔧 Nhân viên phụ trách', [
@@ -66,8 +78,9 @@ class AppointmentDetailPage extends StatelessWidget {
 
   Widget _buildSectionCard(String title, List<Widget> children) {
     return Card(
+      color: const Color(0xFFF3E8FF), // nền tím nhạt nhẹ nhàng
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 5,
+      elevation: 4,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -77,6 +90,7 @@ class AppointmentDetailPage extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
+                  color: Color(0xFF6A1B9A), // tím đậm
                 )),
             const SizedBox(height: 12),
             ...children,
@@ -93,10 +107,57 @@ class AppointmentDetailPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('$label: ',
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-          Expanded(child: Text(value?.toString() ?? '')),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF4A148C), // tím vừa phải
+              )),
+          Expanded(child: Text(value?.toString() ?? '', style: const TextStyle(fontSize: 15))),
         ],
       ),
     );
+  }
+
+  Widget _buildServicesList(List<Map<String, dynamic>> services) {
+    if (services.isEmpty) {
+      return const Text('Không có dịch vụ',
+          style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: services.map<Widget>((service) {
+        final name = service['ServiceName'] ?? 'Không rõ';
+        final price = service['Price'] ?? 0;
+        final priceFormatted = _formatPrice(price);
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            children: [
+              const Text('• ', style: TextStyle(fontSize: 20, color: Color(0xFF6A1B9A))),
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(fontSize: 16, color: Color(0xFF4A148C)),
+                ),
+              ),
+              Text(
+                '$priceFormatted VNĐ',
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, color: Color(0xFF6A1B9A), fontSize: 16),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  String _formatPrice(dynamic price) {
+    if (price == null) return '0';
+    try {
+      final p = price is String ? double.tryParse(price) ?? 0 : price.toDouble();
+      return p.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},');
+    } catch (_) {
+      return price.toString();
+    }
   }
 }

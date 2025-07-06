@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../Appointment/AppointmentHistory.dart';
+import '../QuenMk/quenMatKhau.dart';
 import '../bill/InvoiceListScreen.dart';
 import '../pay/AdminApprovalScreen.dart';
 import 'UserInformationScreen.dart';
-import '../Setting/SettingScreen.dart';
+
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -39,7 +41,7 @@ class _ProfilePageState extends State<ProfilePage> {
         return;
       }
 
-      final url = Uri.parse('http://10.24.67.249:8000/api/users/detail/$userId');
+      final url = Uri.parse('http://192.168.0.108:8000/api/users/detail/$userId');
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -47,15 +49,12 @@ class _ProfilePageState extends State<ProfilePage> {
         final rawImage = data['image'] ?? '';
         final roleFromAPI = data['role']?.toString().toLowerCase() ?? '';
 
-        print("DEBUG DATA: $data");
-        print("DEBUG ROLE: $roleFromAPI");
-
         setState(() {
           name = data['name'] ?? 'Không rõ';
           userRole = roleFromAPI;
           imageUrl = rawImage.startsWith('http')
               ? rawImage
-              : 'http://10.24.67.249:8000/storage/$rawImage';
+              : 'http://192.168.0.108:8000/storage/$rawImage';
           isLoading = false;
         });
       } else {
@@ -75,7 +74,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     try {
-      await http.post(Uri.parse('http://10.24.67.249:8000/api/logout'), headers: {
+      await http.post(Uri.parse('http://192.168.0.108:8000/api/logout'), headers: {
         'Accept': 'application/json',
       });
     } catch (_) {}
@@ -149,6 +148,13 @@ class _ProfilePageState extends State<ProfilePage> {
                   },
                 ),
                 _buildMenuTile(
+                  icon: Icons.lock_outline,
+                  title: 'Đổi mật khẩu',
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()));
+                  },
+                ),
+                _buildMenuTile(
                   icon: Icons.history,
                   title: 'Lịch sử lịch hẹn',
                   onTap: () {
@@ -162,7 +168,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const InvoiceListScreen()));
                   },
                 ),
-                // if (userRole == 'staff')
                 if (userRole == 'staff')
                   _buildMenuTile(
                     icon: Icons.admin_panel_settings,
@@ -181,20 +186,6 @@ class _ProfilePageState extends State<ProfilePage> {
                           builder: (_) => const AdminApprovalScreen()));
                     },
                   ),
-                // _buildMenuTile(
-                //   icon: Icons.privacy_tip,
-                //   title: 'Điều khoản & Chính sách',
-                //   onTap: () {
-                //     Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-                //   },
-                // ),
-                // _buildMenuTile(
-                //   icon: Icons.help_outline,
-                //   title: 'Hỗ trợ',
-                //   onTap: () {
-                //     Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-                //   },
-                // ),
               ],
             ),
           ),

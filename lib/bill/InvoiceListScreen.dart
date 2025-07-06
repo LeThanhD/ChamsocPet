@@ -36,29 +36,56 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
   }
 
   Future<void> fetchInvoices() async {
+    setState(() => isLoading = true);
+
     final prefs = await SharedPreferences.getInstance();
     role = prefs.getString('role');
     userId = prefs.getString('user_id');
 
-    String baseUrl = role == 'staff'
-        ? 'http://10.24.67.249:8000/api/invoices?role=staff'
-        : 'http://10.24.67.249:8000/api/invoices?user_id=$userId&role=user';
+    if (role == null) {
+      print('❌ Role chưa xác định');
+      setState(() => isLoading = false);
+      return;
+    }
+
+    String baseUrl;
+    if (role == 'staff') {
+      baseUrl = 'http://192.168.0.108:8000/api/invoices?role=staff';
+    } else {
+      if (userId == null) {
+        print('❌ UserID chưa xác định');
+        setState(() => isLoading = false);
+        return;
+      }
+      baseUrl = 'http://192.168.0.108:8000/api/invoices?user_id=$userId&role=user';
+    }
 
     if (searchQuery != null && searchQuery!.isNotEmpty) {
       baseUrl += '&search=${Uri.encodeComponent(searchQuery!)}';
     }
 
-    final uri = Uri.parse(baseUrl);
-    final response = await http.get(uri, headers: {'Accept': 'application/json'});
+    try {
+      final uri = Uri.parse(baseUrl);
+      final response = await http.get(uri, headers: {'Accept': 'application/json'});
 
-    if (response.statusCode == 200) {
-      final jsonBody = jsonDecode(response.body);
-      setState(() {
-        invoices = jsonBody is Map ? jsonBody['data'] ?? [] : jsonBody;
-        isLoading = false;
-      });
-    } else {
-      print('❌ Lỗi lấy hóa đơn: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final jsonBody = jsonDecode(response.body);
+
+        // Nếu backend trả dạng chuẩn có trường 'data'
+        final dataList = jsonBody is Map && jsonBody.containsKey('data')
+            ? jsonBody['data']
+            : jsonBody;
+
+        setState(() {
+          invoices = List<dynamic>.from(dataList);
+          isLoading = false;
+        });
+      } else {
+        print('❌ Lỗi lấy hóa đơn: ${response.statusCode}');
+        setState(() => isLoading = false);
+      }
+    } catch (e) {
+      print('❌ Exception khi lấy hóa đơn: $e');
       setState(() => isLoading = false);
     }
   }
@@ -67,38 +94,39 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     if (debounce?.isActive ?? false) debounce!.cancel();
     debounce = Timer(const Duration(milliseconds: 500), () {
       setState(() {
-        searchQuery = value;
-        isLoading = true;
+        searchQuery = value.trim();
       });
       fetchInvoices();
     });
   }
 
+  Color _getStatusColor(String? status) {
+    // Điều chỉnh nếu backend trả status tiếng Việt hoặc tiếng Anh
+    switch (status?.toLowerCase()) {
+      case 'pending':
+      case 'chưa duyệt':
+        return Colors.yellow.shade100;
+      case 'approved':
+      case 'đã duyệt':
+        return Colors.green.shade100;
+      case 'rejected':
+      case 'bị từ chối':
+        return Colors.red.shade100;
+      default:
+        return Colors.grey.shade200;
+    }
+  }
+
   Widget buildInvoiceItem(Map<String, dynamic> invoice) {
     final createdAt = invoice['CreatedAt'] ?? invoice['created_at'] ?? '';
     final formattedDate = createdAt.toString().split('T').first;
-    final status = invoice['status']?.toString().toLowerCase() ?? 'unknown';
-
-    Color backgroundColor;
-    switch (status) {
-      case 'pending':
-        backgroundColor = Colors.yellow.shade100;
-        break;
-      case 'approved':
-        backgroundColor = Colors.green.shade100;
-        break;
-      case 'rejected':
-        backgroundColor = Colors.red.shade100;
-        break;
-      default:
-        backgroundColor = Colors.grey.shade200;
-    }
+    final status = invoice['Status'] ?? invoice['status'] ?? 'unknown';
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: backgroundColor,
+        color: _getStatusColor(status),
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
           BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 4)),
@@ -115,10 +143,10 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('🧾 Mã lịch hẹn: ${invoice['AppointmentID']}'),
-              Text('💸 Dịch vụ: ${invoice['ServicePrice']} đ'),
-              Text('💊 Thuốc: ${invoice['MedicineTotal']} đ'),
-              Text('💰 Tổng cộng: ${invoice['TotalAmount']} đ'),
+              Text('🧾 Mã lịch hẹn: ${invoice['AppointmentID'] ?? 'N/A'}'),
+              Text('💸 Dịch vụ: ${invoice['ServicePrice'] ?? 0} đ'),
+              Text('💊 Thuốc: ${invoice['MedicineTotal'] ?? 0} đ'),
+              Text('💰 Tổng cộng: ${invoice['TotalAmount'] ?? 0} đ'),
               Text('🗓 Ngày tạo: $formattedDate'),
               Text('📌 Trạng thái: $status'),
             ],
@@ -195,7 +223,6 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                       if (isSearching) {
                         searchController.clear();
                         searchQuery = null;
-                        isLoading = true;
                         fetchInvoices();
                       }
                       isSearching = !isSearching;

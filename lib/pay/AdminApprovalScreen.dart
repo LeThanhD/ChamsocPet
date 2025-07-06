@@ -35,7 +35,7 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
       return;
     }
 
-    final uri = Uri.parse("http://10.24.67.249:8000/api/payments?user_id=$userId&role=$role");
+    final uri = Uri.parse("http://192.168.0.108:8000/api/payments?user_id=$userId&role=$role");
 
     try {
       final res = await http.get(uri, headers: {'Accept': 'application/json'});
@@ -65,7 +65,7 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
     final note = payment['Note'] ?? '';
 
     // Gửi yêu cầu duyệt
-    final uri = Uri.parse("http://10.24.67.249:8000/api/payments/approve/$paymentId");
+    final uri = Uri.parse("http://192.168.0.108:8000/api/payments/approve/$paymentId");
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
@@ -109,7 +109,7 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
   }
 
   Future<void> sendNotificationAfterApproval(String paymentId, String userId, dynamic amount, String note) async {
-    final uri = Uri.parse("http://10.24.67.249:8000/api/notifications");
+    final uri = Uri.parse("http://192.168.0.108:8000/api/notifications");
 
     final res = await http.post(
       uri,

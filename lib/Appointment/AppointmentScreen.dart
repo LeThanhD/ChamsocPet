@@ -13,10 +13,10 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
   String? userId;
   String? selectedTime;
   String? selectedPetID;
-  String? selectedServiceID;
   String? selectedStaffID;
   DateTime? selectedDate;
 
+  List<String> selectedServiceIDs = [];
   List<String> availableTimes = [];
   List<dynamic> petList = [];
   List<dynamic> serviceList = [];
@@ -45,7 +45,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
   Future<void> fetchPets() async {
     final token = await getToken();
     final response = await http.get(
-      Uri.parse('http://10.24.67.249:8000/api/pets/user/$userId'),
+      Uri.parse('http://192.168.0.108:8000/api/pets/user/$userId'),
       headers: {
         'Accept': 'application/json',
         'Authorization': 'Bearer $token',
@@ -66,7 +66,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
 
   Future<void> fetchServices() async {
     final response = await http.get(
-      Uri.parse('http://10.24.67.249:8000/api/services/all'),
+      Uri.parse('http://192.168.0.108:8000/api/services/all'),
       headers: {'Accept': 'application/json'},
     );
 
@@ -75,9 +75,6 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
       final List<dynamic> services = decoded['data']['data'];
       setState(() {
         serviceList = services;
-        if (services.isNotEmpty) {
-          selectedServiceID = services[0]['ServiceID']?.toString();
-        }
       });
     }
   }
@@ -85,7 +82,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
   Future<void> fetchStaff() async {
     final token = await getToken();
     final response = await http.get(
-      Uri.parse('http://10.24.67.249:8000/api/users/staff?role=staff'),
+      Uri.parse('http://192.168.0.108:8000/api/users/staff?role=staff'),
       headers: {
         'Accept': 'application/json',
         'Authorization': 'Bearer $token',
@@ -106,7 +103,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
   Future<void> fetchAvailableTimes(DateTime date) async {
     final dateStr = date.toIso8601String().split('T')[0];
     final response = await http.get(
-      Uri.parse('http://10.24.67.249:8000/api/appointments/check-all?date=$dateStr'),
+      Uri.parse('http://192.168.0.108:8000/api/appointments/check-all?date=$dateStr'),
       headers: {'Accept': 'application/json'},
     );
 
@@ -125,7 +122,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
   }
 
   Future<void> submitAppointment() async {
-    if (selectedPetID == null || selectedServiceID == null || selectedDate == null || selectedTime == null) {
+    if (selectedPetID == null || selectedServiceIDs.isEmpty || selectedDate == null || selectedTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Vui lòng chọn đầy đủ thông tin")),
       );
@@ -141,7 +138,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
     }
 
     final response = await http.post(
-      Uri.parse('http://10.24.67.249:8000/api/appointments'),
+      Uri.parse('http://192.168.0.108:8000/api/appointments'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -149,7 +146,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
       body: jsonEncode({
         'UserID': userId,
         'PetID': selectedPetID,
-        'ServiceID': selectedServiceID,
+        'ServiceIDs': selectedServiceIDs,
         'AppointmentDate': selectedDate!.toIso8601String().split('T')[0],
         'AppointmentTime': '$selectedTime:00',
         'Reason': noteController.text.trim().isNotEmpty ? noteController.text.trim() : 'Không có ghi chú',
@@ -163,7 +160,6 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
       Navigator.pop(context, true);
     }
   }
-
 
   Widget _buildDropdown(String label, String? value, List<DropdownMenuItem<String>> items, void Function(String?)? onChanged) {
     final currentValueExists = value != null && items.any((item) => item.value == value);
@@ -227,10 +223,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
                     'Lịch hẹn',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.search),
-                    onPressed: () {},
-                  ),
+                  const SizedBox(width: 40), // Placeholder
                 ],
               ),
             ),
@@ -249,15 +242,31 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
                       )).toList(),
                           (value) => setState(() => selectedPetID = value),
                     ),
-                    _buildDropdown(
-                      'Dịch vụ',
-                      selectedServiceID,
-                      serviceList.map((s) => DropdownMenuItem<String>(
-                        value: s['ServiceID']?.toString(),
-                        child: Text(s['ServiceName']),
-                      )).toList(),
-                          (value) => setState(() => selectedServiceID = value),
+                    const SizedBox(height: 10),
+                    Text("Chọn dịch vụ", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    Wrap(
+                      spacing: 8,
+                      children: serviceList.map((s) {
+                        final id = s['ServiceID'].toString();
+                        final isSelected = selectedServiceIDs.contains(id);
+                        return FilterChip(
+                          label: Text(s['ServiceName']),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                selectedServiceIDs.add(id);
+                              } else {
+                                selectedServiceIDs.remove(id);
+                              }
+                            });
+                          },
+                          selectedColor: Colors.deepPurple.shade200,
+                          checkmarkColor: Colors.white,
+                        );
+                      }).toList(),
                     ),
+                    const SizedBox(height: 10),
                     _buildDropdown(
                       'Nhân viên (tuỳ chọn)',
                       selectedStaffID,

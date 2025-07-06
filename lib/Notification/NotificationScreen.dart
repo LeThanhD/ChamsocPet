@@ -58,7 +58,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
     }
 
     final response = await http.get(
-      Uri.parse('http://10.24.67.249:8000/api/notifications?UserID=$userId'),
+      Uri.parse('http://192.168.0.108:8000/api/notifications?UserID=$userId'),
       headers: {'Accept': 'application/json'},
     );
 
@@ -78,7 +78,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   Future<void> markAsRead(String id) async {
     await http.put(
-      Uri.parse('http://10.24.67.249:8000/api/notifications/$id/read'),
+      Uri.parse('http://192.168.0.108:8000/api/notifications/$id/read'),
       headers: {'Accept': 'application/json'},
     );
     fetchNotifications();
@@ -86,7 +86,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   Future<void> deleteNotification(String id) async {
     final res = await http.delete(
-      Uri.parse('http://10.24.67.249:8000/api/notifications/$id'),
+      Uri.parse('http://192.168.0.108:8000/api/notifications/$id'),
       headers: {'Accept': 'application/json'},
     );
 

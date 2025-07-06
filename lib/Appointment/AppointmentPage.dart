@@ -1,15 +1,14 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'AppointmentDetailPage.dart';
 import 'AppointmentHistory.dart';
 import 'AppointmentScreen.dart';
-import 'AppointmentDetailPage.dart';
+import 'SelectServiceDialog.dart';
 
 class AppointmentPage extends StatefulWidget {
-  const AppointmentPage({super.key, required this.appointmentData});
-  final Map<String, dynamic> appointmentData;
+  const AppointmentPage({super.key});
 
   @override
   AppointmentPageState createState() => AppointmentPageState();
@@ -23,6 +22,17 @@ class AppointmentPageState extends State<AppointmentPage> {
   bool isSearching = false;
   final searchController = TextEditingController();
 
+  // Thứ tự trạng thái ưu tiên sắp xếp
+  final List<String> statusOrder = [
+    'Chưa duyệt',
+    'Đã duyệt',
+    'Chờ khám',
+    'Đang khám',
+    'Hoàn tất dịch vụ',
+    'Chờ thêm thuốc',
+    'Kết thúc',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -33,8 +43,59 @@ class AppointmentPageState extends State<AppointmentPage> {
     final prefs = await SharedPreferences.getInstance();
     userId = prefs.getString('user_id');
     role = prefs.getString('role');
-
     await fetchAppointments();
+  }
+
+  Future<List<dynamic>> fetchMedications() async {
+    final response = await http.get(
+      Uri.parse('http://192.168.0.108:8000/api/medications/in'),
+      headers: {'Accept': 'application/json'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body)['data'];
+    }
+    return [];
+  }
+
+  Future<void> deleteAppointment(String appointmentId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Xác nhận'),
+        content: const Text('Bạn có chắc muốn xóa lịch hẹn này không?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Xóa')),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final response = await http.delete(
+        Uri.parse('http://192.168.0.108:8000/api/appointments/$appointmentId'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Xóa lịch hẹn thành công')),
+        );
+        await fetchAppointments();
+      } else {
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        final String message = body['message'] ?? 'Lỗi không xác định';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không thể xóa $message')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi: $e')),
+      );
+    }
   }
 
   Future<void> fetchAppointments({String query = ''}) async {
@@ -42,10 +103,10 @@ class AppointmentPageState extends State<AppointmentPage> {
     String url;
 
     if (role == 'staff') {
-      url = 'http://10.24.67.249:8000/api/appointments/every?role=staff';
+      url = 'http://192.168.0.108:8000/api/appointments/every?role=staff';
       if (query.isNotEmpty) url += '&search=$query';
     } else {
-      url = 'http://10.24.67.249:8000/api/appointments/all?UserID=$userId';
+      url = 'http://192.168.0.108:8000/api/appointments/all?UserID=$userId';
       if (query.isNotEmpty) url += '&search=$query';
     }
 
@@ -53,13 +114,24 @@ class AppointmentPageState extends State<AppointmentPage> {
       final response = await http.get(Uri.parse(url), headers: {'Accept': 'application/json'});
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
-        final List<dynamic> data = decoded['data'] ?? [];
-        setState(() {
-          appointments = data
-              .cast<Map<String, dynamic>>()
+        final data = decoded['data'];
+
+        if (data is List) {
+          List<Map<String, dynamic>> loadedAppointments = List<Map<String, dynamic>>.from(data)
               .where((a) => a['Status'] != 'Kết thúc')
               .toList();
-        });
+
+          // Sắp xếp theo statusOrder
+          loadedAppointments.sort((a, b) {
+            final indexA = statusOrder.indexOf(a['Status'] ?? '');
+            final indexB = statusOrder.indexOf(b['Status'] ?? '');
+            return indexA.compareTo(indexB);
+          });
+
+          setState(() {
+            appointments = loadedAppointments;
+          });
+        }
       }
     } catch (e) {
       print('❌ Exception: $e');
@@ -70,128 +142,115 @@ class AppointmentPageState extends State<AppointmentPage> {
     }
   }
 
-  Future<void> saveToHistory(Map<String, dynamic> item) async {
-    final prefs = await SharedPreferences.getInstance();
-    final List<String> current = prefs.getStringList('history_appointments') ?? [];
-    current.add(jsonEncode(item));
-    await prefs.setStringList('history_appointments', current);
-  }
+  // Hàm xây dựng widget hiển thị tag trạng thái màu sắc rõ ràng
+  Widget buildStatusTag(String status) {
+    Color backgroundColor;
+    Color textColor;
 
-  // Future<void> createNotification(String userId, String title, String message) async {
-  //   try {
-  //     final response = await http.post(
-  //       Uri.parse('http://10.24.67.249:8000/api/notifications'),
-  //       headers: {
-  //         'Accept': 'application/json',
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: jsonEncode({
-  //         'user_id': userId,
-  //         'title': title,
-  //         'message': message,
-  //       }),
-  //     );
-  //
-  //     if (response.statusCode == 200) {
-  //       print('✅ Tạo thông báo thành công');
-  //     } else {
-  //       print('❌ Lỗi tạo thông báo: ${response.statusCode} - ${response.body}');
-  //     }
-  //   } catch (e) {
-  //     print('❌ Lỗi ngoại lệ khi tạo thông báo: $e');
-  //   }
-  // }
+    switch (status) {
+      case 'Chưa duyệt':
+        backgroundColor = Colors.red.shade100;
+        textColor = Colors.red.shade800;
+        break;
+      case 'Đã duyệt':
+        backgroundColor = Colors.orange.shade100;
+        textColor = Colors.orange.shade800;
+        break;
+      case 'Chờ khám':
+        backgroundColor = Colors.blue.shade100;
+        textColor = Colors.blue.shade800;
+        break;
+      case 'Đang khám':
+        backgroundColor = Colors.purple.shade100;
+        textColor = Colors.purple.shade800;
+        break;
+      case 'Hoàn tất dịch vụ':
+        backgroundColor = Colors.green.shade100;
+        textColor = Colors.green.shade800;
+        break;
+      case 'Chờ thêm thuốc':
+        backgroundColor = Colors.teal.shade100;
+        textColor = Colors.teal.shade800;
+        break;
+      case 'Kết thúc':
+        backgroundColor = Colors.grey.shade400;
+        textColor = Colors.grey.shade900;
+        break;
+      default:
+        backgroundColor = Colors.grey.shade200;
+        textColor = Colors.grey.shade700;
+        break;
+    }
 
-  Future<void> deleteAppointment(String appointmentId) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Xác nhận xóa"),
-        content: const Text("Bạn có chắc chắn muốn xóa lịch hẹn này?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Hủy")),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text("Xóa")),
-        ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
       ),
     );
-
-    if (confirm != true) return;
-
-    try {
-      final response = await http.delete(
-        Uri.parse('http://10.24.67.249:8000/api/appointments/$appointmentId'),
-        headers: {'Accept': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          appointments.removeWhere((a) => a['AppointmentID'] == appointmentId);
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Đã xóa lịch hẹn')),
-        );
-      } else if (response.statusCode == 403) {
-        final message = jsonDecode(response.body)['message'];
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('⚠️ $message')),
-        );
-      } else {
-        print('❌ Xóa thất bại: ${response.body}');
-      }
-    } catch (e) {
-      print('❌ Lỗi khi xóa lịch hẹn: $e');
-    }
   }
 
-  Future<List<dynamic>> fetchMedications() async {
-    final response = await http.get(
-      Uri.parse('http://10.24.67.249:8000/api/medications/in'),
-      headers: {'Accept': 'application/json'},
+  Widget statusActions(String current, String id, List<dynamic> services) {
+    final Map<String, List<String>> next = {
+      'Chưa duyệt': ['Đã duyệt'],
+      'Đã duyệt': ['Chờ khám'],
+      'Chờ khám': ['Đang khám'],
+      'Đang khám': ['Hoàn tất dịch vụ'],
+      'Hoàn tất dịch vụ': ['Chờ thêm thuốc'],
+      'Chờ thêm thuốc': ['Kết thúc'],
+    };
+
+    return Row(
+      children: next[current]?.map((s) {
+        return Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ElevatedButton(
+            onPressed: () async {
+              if (s == 'Hoàn tất dịch vụ' && role == 'staff') {
+                final existingServices = (services as List).where((s) =>
+                s['ServiceID'] != null && s['ServiceName'] != null).toList();
+
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SelectServicePage(
+                      existingServices: existingServices,
+                      appointmentId: id,
+                    ),
+                  ),
+                );
+                if (result != null && result.isNotEmpty) {
+                  print('📦 Dịch vụ đã chọn: $result');
+                  await fetchAppointments();
+                }
+              } else {
+                await updateStatus(id, s);
+                await fetchAppointments();
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+            child: Text(s, style: const TextStyle(color: Colors.white)),
+          ),
+        );
+      }).toList() ?? [],
     );
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body)['data'];
-    }
-    return [];
   }
 
   Future<void> updateStatus(String appointmentId, String status) async {
     try {
-      final appointment = appointments.firstWhere(
-            (a) => a['AppointmentID'] == appointmentId,
-        orElse: () => {},
-      );
-
-      if (appointment.isEmpty) {
-        print('❌ Không tìm thấy lịch hẹn với ID: $appointmentId');
-        return;
-      }
-
-      if (status == 'Đã duyệt') {
-        final res = await http.put(
-          Uri.parse('http://10.24.67.249:8000/api/appointments/update-status/$appointmentId'),
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({'Status': 'Đã duyệt'}),
-        );
-
-        if (res.statusCode == 200) {
-          setState(() {
-            final index = appointments.indexWhere((a) => a['AppointmentID'] == appointmentId);
-            if (index != -1) appointments[index]['Status'] = 'Đã duyệt';
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('✅ Cập nhật trạng thái thành công')),
-          );
-        } else {
-          print('❌ Lỗi duyệt: ${res.body}');
-        }
-
-        return;
-      }
-
       if (status == 'Kết thúc') {
         final meds = await fetchMedications();
         final selectedMeds = await showDialog<List>(
@@ -207,29 +266,13 @@ class AppointmentPageState extends State<AppointmentPage> {
           return;
         }
 
-        final detailRes = await http.get(
-          Uri.parse('http://10.24.67.249:8000/api/appointments/$appointmentId'),
-          headers: {'Accept': 'application/json'},
-        );
-
-        if (detailRes.statusCode != 200) {
-          print('❌ Không lấy được chi tiết: ${detailRes.body}');
-          return;
-        }
-
-        final apptDetail = jsonDecode(detailRes.body)['data'];
-        double servicePrice = double.tryParse(apptDetail['service']?['Price']?.toString() ?? '0') ?? 0;
-        double medicinePrice = 0;
         List<Map<String, dynamic>> medIds = [];
-
         for (var med in selectedMeds) {
-          medicinePrice += double.tryParse(med['Price'].toString()) ?? 0;
           medIds.add({'id': med['MedicationID'], 'quantity': 1});
         }
 
-        // Gửi hóa đơn
         final invoiceRes = await http.post(
-          Uri.parse('http://10.24.67.249:8000/api/invoices'),
+          Uri.parse('http://192.168.0.108:8000/api/invoices'),
           headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
           body: jsonEncode({'appointment_id': appointmentId, 'medicine_ids': medIds}),
         );
@@ -239,90 +282,50 @@ class AppointmentPageState extends State<AppointmentPage> {
           return;
         }
 
-        print('✅ Tạo hóa đơn thành công');
-
-        // Cập nhật trạng thái
         final updateRes = await http.put(
-          Uri.parse('http://10.24.67.249:8000/api/appointments/update-status/$appointmentId'),
+          Uri.parse('http://192.168.0.108:8000/api/appointments/update-status/$appointmentId'),
           headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
           body: jsonEncode({'Status': 'Kết thúc'}),
         );
 
         if (updateRes.statusCode == 200) {
-          // Ghi lịch sử
-          final historyRes = await http.post(
-            Uri.parse('http://10.24.67.249:8000/api/appointment-history'),
-            headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'AppointmentID': appointmentId,
-              'StatusBefore': 'Đã duyệt',
-              'StatusAfter': 'Kết thúc',
-              'Note': 'Cuộc hẹn đã hoàn tất',
-            }),
-          );
-
-          if (historyRes.statusCode == 201) {
-            print('✅ Lưu lịch sử thành công');
-          }
-
-          await saveToHistory(apptDetail);
-
-          setState(() {
-            final index = appointments.indexWhere((a) => a['AppointmentID'] == appointmentId);
-            if (index != -1) appointments[index]['Status'] = 'Kết thúc';
-          });
-
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("✅ Đã kết thúc lịch hẹn và tạo hóa đơn thành công")),
+            const SnackBar(content: Text('✅ Đã kết thúc và tạo hóa đơn')),
           );
-          Navigator.push(
+          await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AppointmentHistoryPage()),
           );
         } else {
           print('❌ Lỗi cập nhật trạng thái: ${updateRes.body}');
         }
+        return;
+      }
+
+      final res = await http.put(
+        Uri.parse('http://192.168.0.108:8000/api/appointments/update-status/$appointmentId'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'Status': status}),
+      );
+
+      if (res.statusCode == 200) {
+        setState(() {
+          final index = appointments.indexWhere((a) => a['AppointmentID'] == appointmentId);
+          if (index != -1) appointments[index]['Status'] = status;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✅ Đã cập nhật trạng thái: $status')),
+        );
+      } else {
+        print('❌ Lỗi duyệt: ${res.body}');
       }
     } catch (e) {
-      print('❌ Exception: $e');
+      print('❌ Exception khi duyệt: $e');
     }
-  }
-
-
-  Color getStatusColor(String status) {
-    switch (status) {
-      case 'Kết thúc':
-        return Colors.green;
-      case 'Đã duyệt':
-        return Colors.orange;
-      default:
-        return Colors.red;
-    }
-  }
-
-  Widget statusActions(String current, String id) {
-    final Map<String, List<String>> next = {
-      'Chưa duyệt': ['Đã duyệt'],
-      'Đã duyệt': ['Kết thúc'],
-    };
-
-    return Row(
-      children: next[current]?.map((s) {
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: ElevatedButton(
-            onPressed: () => updateStatus(id, s),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(
-                  20)),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            child: Text(s, style: const TextStyle(color: Colors.white)),
-          ),
-        );
-      }).toList() ?? [],
-    );
   }
 
   @override
@@ -342,7 +345,7 @@ class AppointmentPageState extends State<AppointmentPage> {
       child: Scaffold(
         backgroundColor: const Color(0xFFF9F9FB),
         appBar: AppBar(
-          automaticallyImplyLeading: false, // ⬅️ Ẩn nút trở lại
+          automaticallyImplyLeading: false,
           backgroundColor: Colors.transparent,
           elevation: 0,
           flexibleSpace: Container(
@@ -362,7 +365,7 @@ class AppointmentPageState extends State<AppointmentPage> {
             onChanged: (value) => fetchAppointments(query: value),
             style: const TextStyle(color: Colors.black),
             decoration: const InputDecoration(
-              hintText: 'Tìm thú cưng hoặc dịch vụ...',
+              hintText: 'Tìm thú cưng',
               hintStyle: TextStyle(color: Colors.black45),
               border: InputBorder.none,
             ),
@@ -396,122 +399,129 @@ class AppointmentPageState extends State<AppointmentPage> {
                   : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 itemCount: appointments.length,
-                itemBuilder: (context, index) {
-                  final appt = appointments[index];
-                  final status = appt['Status'] ?? 'Chưa có trạng thái';
-                  final userName = appt['user']?['FullName'] ?? 'Không có tên khách hàng';
-                  final staffName = appt['staff']?['FullName'] ?? appt['staff']?['name'] ?? 'Không có nhân viên phụ trách';
-                  final petName = appt['pet']?['Name'] ?? 'Không có tên thú cưng';
-                  final serviceName = appt['service']?['ServiceName'] ?? 'Không có tên dịch vụ';
+                  itemBuilder: (context, index) {
+                    final appt = appointments[index];
+                    final status = appt['Status'] ?? 'Chưa có trạng thái';
+                    final userName = appt['user']?['FullName'] ?? 'Không có tên khách hàng';
+                    final staffName = appt['staff']?['FullName'] ?? appt['staff']?['name'] ?? 'Không có nhân viên phụ trách';
+                    final petName = appt['pet']?['Name'] ?? 'Không có tên thú cưng';
 
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => AppointmentDetailPage(appointment: appt)),
-                      );
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          )
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.pets, color: Colors.deepPurple),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  '$petName (${appt['AppointmentDate']} - ${appt['AppointmentTime']})',
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text('👤 Khách hàng: $userName'),
-                          Text('👨‍📫 Nhân viên: $staffName'),
-                          Text('🛠️ Dịch vụ: $serviceName'),
-                          if (appt['Reason'] != null && appt['Reason'].toString().isNotEmpty)
-                            Text('📜 Ghi chú: ${appt['Reason']}'),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: getStatusColor(status).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: getStatusColor(status)),
-                                ),
-                                child: Text(
-                                  status,
-                                  style: TextStyle(
-                                    color: getStatusColor(status),
-                                    fontWeight: FontWeight.bold,
+                    // Format ngày: chỉ lấy phần ngày (YYYY-MM-DD)
+                    String rawDate = appt['AppointmentDate'] ?? '';
+                    String dateOnly = rawDate.split('T').first;
+
+                    final appointmentTime = appt['AppointmentTime'] ?? '';
+                    final serviceNames = (appt['services'] as List?)?.map((s) => s['ServiceName']).join(', ') ?? 'Không có tên dịch vụ';
+
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => AppointmentDetailPage(appointment: appt)),
+                        );
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.pets, color: Colors.deepPurple),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    petName,
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              if (role == 'staff')
-                                statusActions(status, appt['AppointmentID'])
-                              else
-                                IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
-                                  onPressed: () => deleteAppointment(appt['AppointmentID']),
-                                  tooltip: "Xóa lịch hẹn",
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+
+                            // Dòng ngày giờ riêng
+                            Row(
+                              children: [
+                                const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                                const SizedBox(width: 6),
+                                Text(
+                                  dateOnly,
+                                  style: const TextStyle(fontSize: 14, color: Colors.black87),
                                 ),
-                            ],
-                          ),
-                        ],
+                                const SizedBox(width: 20),
+                                const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                                const SizedBox(width: 6),
+                                Text(
+                                  appointmentTime,
+                                  style: const TextStyle(fontSize: 14, color: Colors.black87),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 10),
+                            Text('👤 Khách hàng: $userName'),
+                            Text('👨‍📫 Nhân viên: $staffName'),
+                            Text('🛠️ Dịch vụ: $serviceNames'),
+                            if (appt['Reason'] != null && appt['Reason'].toString().isNotEmpty)
+                              Text('📜 Ghi chú: ${appt['Reason']}'),
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                buildStatusTag(status),
+                                TextButton(
+                                  onPressed: () => deleteAppointment(appt['AppointmentID']),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: role == 'staff' ? Colors.orange : Colors.red,
+                                  ),
+                                  child: Text(role == 'staff' ? 'Hủy lịch hẹn' : 'Xóa lịch hẹn'),
+                                ),
+                              ],
+                            ),
+                            if (role == 'staff')
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: statusActions(status, appt['AppointmentID'], appt['services'] ?? []),
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  }
               ),
             ),
           ],
         ),
-        floatingActionButton: role == 'staff'
-            ? null
-            : FloatingActionButton(
+        floatingActionButton: role != 'staff'
+            ? FloatingActionButton(
           onPressed: () async {
             final result = await Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => AppointmentScreen()),
             );
-
             if (result == true) {
-              setState(() {
-                isLoading = true;
-              });
-
               await fetchAppointments();
-
-              setState(() {
-                isLoading = false;
-              });
             }
           },
           backgroundColor: Colors.deepPurple,
-          child: const Icon(Icons.add, color: Colors.white),
-        ),
+          child: const Icon(Icons.add),
+        )
+            : const SizedBox.shrink(),
       ),
     );
   }
-
 }
 
 class SelectMedicineDialog extends StatefulWidget {

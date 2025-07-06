@@ -145,6 +145,22 @@ class NotificationController extends Controller
         return response()->json(['message' => 'Đã đánh dấu đã đọc']);
     }
 
+     public function unreadCount(Request $request)
+    {
+        // Lấy userId từ user đăng nhập hoặc query param
+        $userId = $request->user()->UserID ?? $request->query('user_id');
+
+        if (!$userId) {
+            return response()->json(['error' => 'Thiếu user_id'], 400);
+        }
+
+        $count = Notification::where('user_id', $userId)
+            ->where('is_read', false)
+            ->count();
+
+        return response()->json(['unread_count' => $count]);
+    }
+    
     // ✅ Xoá thông báo
     public function destroy($id)
     {

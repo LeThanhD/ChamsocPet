@@ -6,33 +6,103 @@ use App\Models\Pet;
 use App\Models\PetNotes;
 use App\Models\Appointment;
 use Illuminate\Http\Request;
+use App\Models\Invoices;
+use App\Models\Payment;
+use App\Models\Service;
+use App\Models\Medication;
+
 
 class PetController extends Controller
 {
     public function index(Request $request)
+    {
+        $userId = $request->query('user_id');
+        $role = $request->query('role');
+
+        // Nếu không có user_id hoặc role, trả lỗi
+        if (!$userId || !$role) {
+            return response()->json(['error' => 'Thiếu user_id hoặc role'], 400);
+        }
+
+        // Nếu là nhân viên thì trả về toàn bộ thanh toán
+        if ($role === 'staff') {
+            return response()->json(Payment::orderByDesc('PaymentTime')->get());
+        }
+
+        // Nếu là người dùng thì chỉ trả thanh toán của họ
+        $payments = Payment::where('UserID', $userId)
+            ->orderByDesc('PaymentTime')
+            ->get();
+
+        return response()->json($payments);
+    }
+
+
+       public function getPetUsedServicesAndMedications($petId)
 {
-    $userId = $request->query('user_id');
-    $role = $request->query('role');
+    // Lấy tất cả các cuộc hẹn của pet
+    $appointments = Appointment::where('PetID', $petId)->pluck('AppointmentID');
 
-    // Nếu không có user_id hoặc role, trả lỗi
-    if (!$userId || !$role) {
-        return response()->json(['error' => 'Thiếu user_id hoặc role'], 400);
+    if ($appointments->isEmpty()) {
+        return response()->json([
+            'message' => 'Pet chưa có lịch hẹn nào.',
+            'services' => [],
+            'medications' => [],
+        ]);
     }
 
-    // Nếu là nhân viên thì trả về toàn bộ thanh toán
-    if ($role === 'staff') {
-        return response()->json(Payment::orderByDesc('PaymentTime')->get());
+    // Lấy các InvoiceID của các hóa đơn thuộc cuộc hẹn trên
+    $invoiceIds = Invoices::whereIn('AppointmentID', $appointments)->pluck('InvoiceID');
+
+    if ($invoiceIds->isEmpty()) {
+        return response()->json([
+            'message' => 'Pet chưa có hóa đơn nào.',
+            'services' => [],
+            'medications' => [],
+        ]);
     }
 
-    // Nếu là người dùng thì chỉ trả thanh toán của họ
-    $payments = Payment::where('UserID', $userId)
-        ->orderByDesc('PaymentTime')
+    // Lấy danh sách InvoiceID đã có payment "đã duyệt" (hoặc trạng thái tương ứng)
+    $paidInvoiceIds = Payment::whereIn('InvoiceID', $invoiceIds)
+        ->where('Status', 'đã duyệt')
+        ->pluck('InvoiceID');
+
+    if ($paidInvoiceIds->isEmpty()) {
+        return response()->json([
+            'message' => 'Pet chưa sử dụng dịch vụ hay thuốc nào.',
+            'services' => [],
+            'medications' => [],
+        ]);
+    }
+
+    // Lấy các hóa đơn đã được thanh toán (có trong danh sách paidInvoiceIds)
+    $invoices = Invoices::with(['services', 'medications'])
+        ->whereIn('InvoiceID', $paidInvoiceIds)
         ->get();
 
-    return response()->json($payments);
+    // Gộp danh sách dịch vụ và thuốc từ tất cả hóa đơn, loại bỏ trùng lặp
+    $allServices = collect();
+    $allMedications = collect();
+
+    foreach ($invoices as $invoice) {
+        if ($invoice->services) {
+            $allServices = $allServices->merge($invoice->services);
+        }
+        if ($invoice->medications) {
+            $allMedications = $allMedications->merge($invoice->medications);
+        }
+    }
+
+    // Loại trùng dựa trên ID
+    $uniqueServices = $allServices->unique('ServiceID')->values();
+    $uniqueMedications = $allMedications->unique('MedicationID')->values();
+
+    return response()->json([
+        'message' => 'Danh sách dịch vụ và thuốc đã sử dụng',
+        'services' => $uniqueServices,
+        'medications' => $uniqueMedications,
+    ]);
 }
-
-
 
     // Lấy thú cưng của user cụ thể (chỉ chính chủ mới xem được)
     public function getPetsByUser(Request $request, $userId)

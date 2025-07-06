@@ -146,10 +146,19 @@ class PaymentController extends Controller
                 ], 409); // Conflict
             }
 
-            // ✅ Cập nhật trạng thái
+            // ✅ Cập nhật trạng thái thanh toán
             $payment->status = 'đã duyệt';
             $payment->user_confirmed = 1;
             $payment->save();
+
+            // ✅ Cập nhật trạng thái hóa đơn tương ứng
+            if ($payment->InvoiceID) {
+                $invoice = Invoices::where('InvoiceID', $payment->InvoiceID)->first();
+                if ($invoice) {
+                    $invoice->Status = 'đã thanh toán'; // hoặc giá trị trạng thái phù hợp trong DB
+                    $invoice->save();
+                }
+            }
 
             // ✅ Lấy user thanh toán
             $userId = $payment->UserID ?? $payment->user_id;
@@ -168,7 +177,7 @@ class PaymentController extends Controller
                 $firebase->sendNotification($user->fcm_token, $title, $message);
             }
 
-            // ✅ Gửi và lưu vào DB qua controller
+            // ✅ Gửi và lưu thông báo trong DB
             $notificationController = app(NotificationController::class);
             $notificationController->send($userId, $message);
 

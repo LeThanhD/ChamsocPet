@@ -48,11 +48,13 @@ Route::prefix('/appointments')->controller(AppointmentController::class)->group(
     Route::post('/', 'store');
     Route::put('/{id}', 'update');
     Route::put('/update-status/{id}', 'updateStatus');
+    Route::get('/services', 'fetchServices');
+    Route::get('/get-service-name', 'getServiceName');
     Route::delete('/{id}', 'destroy');
     Route::get('/check', 'checkConflict');
+    Route::put('/update-service/{id}', 'updateService');
     Route::get('/check-all', 'getBookedTimes');
     Route::get('/{id}', 'show');
-
     // Route::delete('/del/{id}', 'deleteAppointment');
 });
 
@@ -103,7 +105,7 @@ Route::prefix('/pets')->controller(PetController::class)->group(function () {
     Route::delete('/{id}', 'destroy');
     Route::put('/{id}', 'update');
     Route::get('/{id}','show');
-
+    Route::get('/{id}/used-services-medications',  'getPetUsedServicesAndMedications');
 });
 
     Route::prefix('/notifications')->controller(NotificationController::class)->group(function () {
@@ -113,7 +115,7 @@ Route::prefix('/pets')->controller(PetController::class)->group(function () {
         Route::put('/{id}/read', 'markAsRead');     
         Route::delete('/{id}', 'destroy');    
         Route::get('/{user_id}', 'getUserNotifications');
-       
+        Route::get('unread-count', 'unreadCount');
     });
 
 

@@ -41,42 +41,42 @@ class AppointmentHistoryController extends Controller
 
     // ✅ Lấy tất cả lịch sử (cho nhân viên)
     public function getAllHistories()
-    {
-        $histories = AppointmentHistory::with([
-            'appointment.user',
-            'appointment.pet',
-            'appointment.service',
-            'appointment.staff' // ✅ Thêm để lấy dữ liệu người phụ trách
-        ])->orderBy('UpdatedAt', 'desc')->get();
+{
+    $histories = AppointmentHistory::with([
+        'appointment.user',
+        'appointment.pet',
+        'appointment.services', // ✅ Sửa lại đây
+        'appointment.staff'
+    ])->orderBy('UpdatedAt', 'desc')->get();
 
-        return response()->json([
-            'success' => true,
-            'data'    => $histories,
-        ]);
-    }
+    return response()->json([
+        'success' => true,
+        'data'    => $histories,
+    ]);
+}
 
     // ✅ Lấy lịch sử theo UserID (chỉ hiển thị lịch sử của người dùng đó)
     public function getUserHistories(Request $request)
-    {
-        $userId = $request->query('UserID');
-        if (!$userId) {
-            return response()->json(['message' => 'Thiếu UserID'], 400);
-        }
-
-        $histories = AppointmentHistory::whereHas('appointment', function ($query) use ($userId) {
-            $query->where('UserID', $userId);
-        })->with([
-            'appointment.user',
-            'appointment.pet',
-            'appointment.service',
-            'appointment.staff' // ✅ Thêm để lấy dữ liệu người phụ trách
-        ])->orderBy('UpdatedAt', 'desc')->get();
-
-        return response()->json([
-            'success' => true,
-            'data'    => $histories,
-        ]);
+{
+    $userId = $request->query('UserID');
+    if (!$userId) {
+        return response()->json(['message' => 'Thiếu UserID'], 400);
     }
+
+    $histories = AppointmentHistory::whereHas('appointment', function ($query) use ($userId) {
+        $query->where('UserID', $userId);
+    })->with([
+        'appointment.user',
+        'appointment.pet',
+        'appointment.services', // ✅ Sửa lại đây
+        'appointment.staff'
+    ])->orderBy('UpdatedAt', 'desc')->get();
+
+    return response()->json([
+        'success' => true,
+        'data'    => $histories,
+    ]);
+}
 
     // ✅ Cập nhật thông tin lịch sử
     public function update(Request $request, $id)

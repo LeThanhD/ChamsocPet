@@ -28,4 +28,20 @@ class Service extends Model
     {
         return $this->belongsTo(ServiceCategory::class, 'CategoryID', 'CategoryID');
     }
+
+    public function appointment()
+    {
+        return $this->belongsTo(Appointment::class, 'AppointmentID', 'AppointmentID');
+    }
+
+    public function invoices()
+{
+    return $this->belongsToMany(
+        Invoices::class,
+        'invoice_service',
+        'ServiceID',
+        'InvoiceID'
+    );
+}
+
 }

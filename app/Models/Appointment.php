@@ -28,13 +28,14 @@ class Appointment extends Model
         'Reason',
         'Status',
         'StaffID',
+        'Price',  // Thêm vào để cho phép cập nhật cột Price
     ];
 
     protected $casts = [
-    'AppointmentDate' => 'date',
-    'AppointmentTime' => 'datetime:H:i:s',
-];
-
+        'AppointmentDate' => 'date',
+        'AppointmentTime' => 'datetime:H:i:s',
+        'Price' => 'decimal:2', // Đảm bảo Price được cast đúng kiểu decimal
+    ];
 
     // ✅ Quan hệ đến chủ thú cưng
     public function user()
@@ -51,10 +52,20 @@ class Appointment extends Model
     }
 
     // ✅ Quan hệ đến dịch vụ
+    // ✅ Quan hệ nhiều dịch vụ đã chọn
     public function service()
     {
         return $this->belongsTo(Service::class, 'ServiceID', 'ServiceID');
     }
+
+    // Nhiều dịch vụ từ bảng trung gian
+    public function services()
+    {
+        return $this->belongsToMany(Service::class, 'appointment_service', 'appointment_id', 'service_id')
+                    ->select(['services.ServiceID', 'services.ServiceName', 'services.Price']); // thêm trường Price
+    }
+
+
 
     // ✅ Quan hệ đến lịch sử cuộc hẹn
     public function histories()

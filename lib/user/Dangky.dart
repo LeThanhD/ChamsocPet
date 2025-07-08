@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
-import '../login/TrangChinh.dart';
+import 'TrangChinh.dart';
 
 class RegisterFullScreen extends StatefulWidget {
   const RegisterFullScreen({super.key});

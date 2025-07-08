@@ -23,6 +23,15 @@ class AppointmentDetailPage extends StatelessWidget {
       }
     }
 
+    String _formatDate(String rawDate) {
+      try {
+        final date = DateTime.parse(rawDate);
+        return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      } catch (_) {
+        return rawDate;
+      }
+    }
+
     final staff = appointment['staff'] ?? {};
 
     return Scaffold(
@@ -47,8 +56,23 @@ class AppointmentDetailPage extends StatelessWidget {
               children: [
                 _buildSectionCard('📅 Thông tin lịch hẹn', [
                   _buildDetailRow('Mã lịch hẹn', appointment['AppointmentID']),
-                  _buildDetailRow('Ngày', appointment['AppointmentDate']),
-                  _buildDetailRow('Giờ', appointment['AppointmentTime']),
+                  Row(
+                    children: [
+                      const Icon(Icons.calendar_today, size: 18, color: Colors.black54),
+                      const SizedBox(width: 6),
+                      Text(
+                        _formatDate(appointment['AppointmentDate'] ?? ''),
+                        style: const TextStyle(fontSize: 15, color: Colors.black87),
+                      ),
+                      const SizedBox(width: 16),
+                      const Icon(Icons.access_time, size: 18, color: Colors.black54),
+                      const SizedBox(width: 6),
+                      Text(
+                        appointment['AppointmentTime'] ?? '',
+                        style: const TextStyle(fontSize: 15, color: Colors.black87),
+                      ),
+                    ],
+                  ),
                   _buildDetailRow('Trạng thái', appointment['Status']),
                   _buildDetailRow('Ghi chú', appointment['Reason'] ?? 'Không có'),
                 ]),

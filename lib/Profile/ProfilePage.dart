@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -7,8 +8,9 @@ import '../Appointment/AppointmentHistory.dart';
 import '../QuenMk/quenMatKhau.dart';
 import '../bill/InvoiceListScreen.dart';
 import '../pay/AdminApprovalScreen.dart';
+import '../user/ManagementUserTotalAmount.dart';
+import '../user/UserManagementScreen.dart';
 import 'UserInformationScreen.dart';
-
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -22,11 +24,25 @@ class _ProfilePageState extends State<ProfilePage> {
   String imageUrl = '';
   String userRole = '';
   bool isLoading = true;
+  Map<String, dynamic>? statistics;
+  Timer? _refreshTimer; // <-- thêm dòng này
 
   @override
   void initState() {
     super.initState();
     fetchUserInfo();
+
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      if (!mounted) return;
+      print('🔁 Auto-refresh ProfilePage...');
+      await fetchUserInfo(); // Gọi lại cả user info và statistics nếu là staff
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel(); // <-- huỷ timer
+    super.dispose();
   }
 
   Future<void> fetchUserInfo() async {
@@ -57,6 +73,10 @@ class _ProfilePageState extends State<ProfilePage> {
               : 'http://192.168.0.108:8000/storage/$rawImage';
           isLoading = false;
         });
+
+        if (roleFromAPI == 'staff') {
+          fetchStatistics();
+        }
       } else {
         setState(() {
           name = 'Lỗi tải dữ liệu';
@@ -68,6 +88,24 @@ class _ProfilePageState extends State<ProfilePage> {
         name = 'Lỗi kết nối';
         isLoading = false;
       });
+    }
+  }
+
+  Future<void> fetchStatistics() async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://192.168.0.108:8000/api/users/statistics/TotalAmount/human'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          statistics = data;
+        });
+      }
+    } catch (e) {
+      print('❌ Lỗi thống kê: $e');
     }
   }
 
@@ -140,6 +178,39 @@ class _ProfilePageState extends State<ProfilePage> {
             child: ListView(
               padding: const EdgeInsets.only(top: 16),
               children: [
+                if (userRole == 'staff' && statistics != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ManagementUserTotalAmount()),
+                        );
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [BoxShadow(color: Colors.grey.shade300, blurRadius: 4)],
+                        ),
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('📊 Thống kê tháng này',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 12),
+                            Text('💰 Tổng thu: ${statistics!['total_income']} VND',
+                                style: const TextStyle(fontSize: 16)),
+                            Text('👤 Người dùng hoàn tất: ${statistics!['completed_users']} người',
+                                style: const TextStyle(fontSize: 16)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
                 _buildMenuTile(
                   icon: Icons.person_outline,
                   title: 'Chỉnh sửa thông tin',
@@ -168,22 +239,27 @@ class _ProfilePageState extends State<ProfilePage> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const InvoiceListScreen()));
                   },
                 ),
-                if (userRole == 'staff')
+                if (userRole == 'staff') ...[
                   _buildMenuTile(
                     icon: Icons.admin_panel_settings,
                     title: 'Duyệt thanh toán',
                     onTap: () {
-                      Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => const AdminApprovalScreen()));
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminApprovalScreen()));
                     },
-                  )
-                else if (userRole == 'owner')
+                  ),
+                  _buildMenuTile(
+                    icon: Icons.group,
+                    title: 'Quản lý người dùng',
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const UserManagementScreen()));
+                    },
+                  ),
+                ] else if (userRole == 'owner')
                   _buildMenuTile(
                     icon: Icons.payment,
                     title: 'Thanh toán hóa đơn',
                     onTap: () {
-                      Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => const AdminApprovalScreen()));
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminApprovalScreen()));
                     },
                   ),
               ],

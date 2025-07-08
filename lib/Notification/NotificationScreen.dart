@@ -53,14 +53,19 @@ class _NotificationScreenState extends State<NotificationScreen> {
     final userId = prefs.getString('user_id') ?? '';
 
     if (userId.isEmpty) {
+      print('⚠️ Không tìm thấy user_id trong SharedPreferences');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('⚠️ Không tìm thấy thông tin đăng nhập')),
+      );
       setState(() => isLoading = false);
       return;
     }
 
-    final response = await http.get(
-      Uri.parse('http://192.168.0.108:8000/api/notifications?UserID=$userId'),
-      headers: {'Accept': 'application/json'},
-    );
+    final uri = Uri.http('192.168.0.108:8000', '/api/notifications', {
+      'UserID': userId,
+    });
+
+    final response = await http.get(uri, headers: {'Accept': 'application/json'});
 
     if (response.statusCode == 200) {
       final body = jsonDecode(response.body);
@@ -72,6 +77,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
       });
     } else {
       print('❌ Lỗi lấy dữ liệu: ${response.body}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Lỗi khi tải thông báo: ${response.statusCode}')),
+      );
       setState(() => isLoading = false);
     }
   }
@@ -85,20 +93,34 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   Future<void> deleteNotification(String id) async {
-    final res = await http.delete(
-      Uri.parse('http://192.168.0.108:8000/api/notifications/$id'),
-      headers: {'Accept': 'application/json'},
-    );
-
-    if (res.statusCode == 200) {
-      setState(() {
-        notifications.removeWhere((e) => e.id == id);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Đã xóa thông báo')),
+    try {
+      final res = await http.delete(
+        Uri.parse('http://192.168.0.108:8000/api/notifications/$id'),
+        headers: {'Accept': 'application/json'},
       );
-    } else {
-      print('❌ Xóa thất bại: ${res.body}');
+
+      if (res.statusCode == 200) {
+        final responseBody = jsonDecode(res.body);
+        final successMessage = responseBody['message'] ?? 'Đã xóa thông báo';
+
+        setState(() {
+          notifications.removeWhere((e) => e.id == id);
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✅ $successMessage')),
+        );
+      } else {
+        final errorMessage = jsonDecode(res.body)['message'] ?? 'Xóa thất bại';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ $errorMessage')),
+        );
+      }
+    } catch (e) {
+      print('❌ Lỗi ngoại lệ khi xóa thông báo: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('❌ Đã xảy ra lỗi không mong muốn')),
+      );
     }
   }
 
@@ -124,8 +146,14 @@ class _NotificationScreenState extends State<NotificationScreen> {
               color: noti.isRead ? Colors.grey[200] : Colors.white,
               margin: const EdgeInsets.only(bottom: 12),
               child: ListTile(
-                leading: const Icon(Icons.notifications, color: Colors.teal),
-                title: Text(noti.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                leading: Icon(
+                  noti.isRead
+                      ? Icons.mark_email_read
+                      : Icons.mark_email_unread,
+                  color: noti.isRead ? Colors.grey : Colors.teal,
+                ),
+                title: Text(noti.title,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -146,8 +174,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         title: const Text('Xác nhận'),
                         content: const Text('Bạn muốn xóa thông báo này?'),
                         actions: [
-                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Hủy')),
-                          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Xóa')),
+                          TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Hủy')),
+                          TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Xóa')),
                         ],
                       ),
                     );

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../DangKy/Dangky.dart';
+import 'Dangky.dart';
 import '../QuenMk/quenMatKhau.dart';
 import 'DangNhap.dart';
 

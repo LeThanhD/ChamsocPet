@@ -91,22 +91,6 @@ class _SelectServicePageState extends State<SelectServicePage> {
 
       if (res.statusCode == 200) {
         print("✅ Cập nhật dịch vụ thành công");
-
-        final statusRes = await http.put(
-          Uri.parse('http://192.168.0.108:8000/api/appointments/update-status/$appointmentId'),
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: jsonEncode({'Status': 'Chờ thêm thuốc'}),
-        );
-
-        if (statusRes.statusCode == 200) {
-          print("✅ Trạng thái cập nhật sang 'Chờ thêm thuốc'");
-        } else {
-          print("⚠️ Lỗi cập nhật trạng thái: ${statusRes.body}");
-        }
       } else {
         print('❌ Lỗi cập nhật dịch vụ: ${res.body}');
       }

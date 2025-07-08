@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'EditProfileScreen.dart';
 
@@ -28,6 +29,15 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
     loadUserData();
   }
 
+  String formatDate(String rawDate) {
+    try {
+      final date = DateTime.parse(rawDate);
+      return DateFormat('yyyy-MM-dd').format(date); // hoặc 'dd/MM/yyyy'
+    } catch (_) {
+      return rawDate;
+    }
+  }
+
   Future<void> loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
     userId = prefs.getString('user_id') ?? '';
@@ -41,7 +51,7 @@ class _UserInformationScreenState extends State<UserInformationScreen> {
       setState(() {
         fullName = data['name'] ?? '';
         gender = (data['gender'] == 1 || data['gender'] == 'Nam') ? 'Nam' : 'Nữ';
-        birthDate = data['birth_date'] ?? '';
+        birthDate = formatDate(data['birth_date'] ?? ''); // ✅ Chỗ này cần gọi hàm format
         address = data['address'] ?? '';
         email = data['email'] ?? '';
         phone = data['phone'] ?? '';

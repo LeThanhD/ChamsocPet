@@ -24,6 +24,17 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
     fetchHistoryFromAPI();
   }
 
+  String _formatDateOnly(String? dateTimeStr) {
+    if (dateTimeStr == null || dateTimeStr.isEmpty) return '';
+    try {
+      final date = DateTime.parse(dateTimeStr);
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateTimeStr.split('T').first; // fallback nếu sai format
+    }
+  }
+
+
   Future<void> fetchHistoryFromAPI() async {
     final prefs = await SharedPreferences.getInstance();
     role = prefs.getString('role');
@@ -144,8 +155,23 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
               children: [
                 const SizedBox(height: 4),
                 Text('👤 Chủ: ${user['FullName'] ?? 'Không rõ'}'),
-                Text('📅 Ngày: ${appointment['AppointmentDate'] ?? ''}'),
-                Text('🕒 Giờ: ${appointment['AppointmentTime'] ?? ''}'),
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today, size: 16, color: Colors.black54),
+                    const SizedBox(width: 6),
+                    Text(
+                      _formatDateOnly(appointment['AppointmentDate']),
+                      style: const TextStyle(color: Colors.black87),
+                    ),
+                    const SizedBox(width: 16),
+                    const Icon(Icons.access_time, size: 16, color: Colors.black54),
+                    const SizedBox(width: 6),
+                    Text(
+                      (appointment['AppointmentTime'] ?? '').toString(),
+                      style: const TextStyle(color: Colors.black87),
+                    ),
+                  ],
+                ),
                 Text('👨‍🔧 Nhân viên: ${staff['FullName'] ?? staff['name'] ?? 'Không rõ'}'),
                 if ((appointment['Reason'] ?? '').toString().isNotEmpty)
                   Text('📝 Ghi chú: ${appointment['Reason']}'),

@@ -5,27 +5,27 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'firebase_options.dart';
-import 'login/DangNhap.dart';       // LoginScreen
-import 'login/TrangChinh.dart';    // LoginPage
+import 'user/DangNhap.dart';       // LoginScreen
+import 'user/TrangChinh.dart';    // LoginPage
 import 'Profile/ProfilePage.dart'; // Trang cá nhân
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+// Background handler cho FCM
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
   print('📩 [Background] Message received: ${message.messageId}');
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Firebase initialization (Chỉ gọi một lần duy nhất trong main)
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
   print('✅ Firebase initialized!');
 
+  // Đăng ký background handler cho FCM
   if (!kIsWeb) {
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   }
@@ -53,16 +53,24 @@ class _MyAppState extends State<MyApp> {
     try {
       final messaging = FirebaseMessaging.instance;
 
+      // Request permission to receive notifications
       await messaging.requestPermission();
+
+      // Initialize FCM if not already
       await messaging.setAutoInitEnabled(true);
 
+      // Get the token
       final token = await messaging.getToken();
-      print('📱 FCM Token: $token');
-      setState(() {
-        _fcmToken = token;
-      });
+      if (token != null) {
+        print('📱 FCM Token: $token');
+        setState(() {
+          _fcmToken = token;
+        });
+      } else {
+        print('❌ FCM Token is null!');
+      }
 
-      // ✅ Nhận thông báo khi app đang mở
+      // Handle foreground notifications
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         final title = message.notification?.title;
         final body = message.notification?.body;
@@ -70,6 +78,7 @@ class _MyAppState extends State<MyApp> {
 
         print('🔔 [Foreground] $title - $body');
 
+        // Handling custom action from notification data
         if (data['action'] == 'payment_approved') {
           final paymentData = {
             'PaymentID': data['payment_id'] ?? '',
@@ -78,6 +87,7 @@ class _MyAppState extends State<MyApp> {
             'Status': 'Đã xác nhận',
           };
 
+          // Navigate to PaymentSuccessScreen when action is triggered
           navigatorKey.currentState?.push(
             MaterialPageRoute(
               builder: (_) => PaymentSuccessScreen(),
@@ -95,12 +105,12 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      home: LoginScreen(),
+      home: const LoginScreen(), // Make sure to use const for immutable widgets
       routes: {
-        '/login': (context) => LoginScreen(),
+        '/login': (context) => const LoginScreen(),
         '/home': (context) => LoginPage(),
         '/profile': (context) => const ProfilePage(),
       },
     );
   }
-} 
+}

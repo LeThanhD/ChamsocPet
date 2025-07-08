@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart'; // ✅ Thêm để định dạng ngày giờ
 
 class PetHistoryScreen extends StatefulWidget {
   final String petId;
@@ -24,7 +25,8 @@ class _PetHistoryScreenState extends State<PetHistoryScreen> {
   }
 
   Future<void> fetchHistory() async {
-    final url = Uri.parse('http://192.168.0.108:8000/api/pets/${widget.petId}/used-services-medications');
+    final url = Uri.parse(
+        'http://192.168.0.108:8000/api/pets/${widget.petId}/used-services-medications');
     try {
       final res = await http.get(url, headers: {'Accept': 'application/json'});
       if (res.statusCode == 200) {
@@ -50,6 +52,16 @@ class _PetHistoryScreenState extends State<PetHistoryScreen> {
     }
   }
 
+  String formatDateTime(String? rawDate) {
+    if (rawDate == null || rawDate.isEmpty) return 'Không rõ';
+    try {
+      final date = DateTime.parse(rawDate);
+      return DateFormat('dd/MM/yyyy HH:mm').format(date);
+    } catch (_) {
+      return rawDate;
+    }
+  }
+
   Widget buildListSection(String title, List<dynamic> items, String emptyMessage) {
     if (items.isEmpty) {
       return Padding(
@@ -60,30 +72,31 @@ class _PetHistoryScreenState extends State<PetHistoryScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.deepPurple)),
+        Text(title,
+            style: const TextStyle(
+                fontSize: 22, fontWeight: FontWeight.bold, color: Colors.deepPurple)),
         const SizedBox(height: 12),
         ...items.map((item) {
           final name = item['Name'] ?? item['ServiceName'] ?? 'Không rõ tên';
-          final date = item['Date'] ?? item['UsedAt'] ?? '';
+          final rawDate = item['UsedTime'] ?? '';
+          final formattedDate = formatDateTime(rawDate);
           return Card(
             elevation: 3,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
             margin: const EdgeInsets.symmetric(vertical: 6),
             child: ListTile(
               leading: CircleAvatar(
-                backgroundColor: title.contains('thuốc') ? Colors.deepPurple.shade100 : Colors.blue.shade100,
+                backgroundColor:
+                title.contains('thuốc') ? Colors.deepPurple.shade100 : Colors.blue.shade100,
                 child: Icon(
-                  title.contains('thuốc') ? Icons.medical_services : Icons.medical_services,
+                  title.contains('thuốc') ? Icons.medical_services : Icons.healing,
                   color: title.contains('thuốc') ? Colors.deepPurple : Colors.blue,
                   size: 28,
                 ),
               ),
               title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: date.isNotEmpty ? Text(date, style: const TextStyle(color: Colors.black54)) : null,
-              // Bỏ trailing icon mũi tên
-              onTap: () {
-                // Optional: xử lý khi bấm vào item
-              },
+              subtitle: Text('🕒 Sử dụng lúc: $formattedDate',
+                  style: const TextStyle(color: Colors.black54)),
             ),
           );
         }).toList(),
@@ -106,7 +119,8 @@ class _PetHistoryScreenState extends State<PetHistoryScreen> {
             ),
           ),
           child: AppBar(
-            title: const Text('Lịch sử thuốc & dịch vụ', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple)),
+            title: const Text('Lịch sử thuốc & dịch vụ',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple)),
             centerTitle: true,
             backgroundColor: Colors.transparent,
             elevation: 0,
@@ -128,7 +142,8 @@ class _PetHistoryScreenState extends State<PetHistoryScreen> {
               if (message != null && message!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 24),
-                  child: Text(message!, style: const TextStyle(fontSize: 16, color: Colors.black87)),
+                  child: Text(message!,
+                      style: const TextStyle(fontSize: 16, color: Colors.black87)),
                 ),
               buildListSection('Thuốc đã sử dụng', medications, 'Chưa có lịch sử thuốc'),
               const SizedBox(height: 28),

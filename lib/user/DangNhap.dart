@@ -53,7 +53,7 @@ class _LoginPageState extends State<LoginPage> {
         final prefs = await SharedPreferences.getInstance();
         final user = data['user'];
 
-        await prefs.setString('token', data['token']);http://192.168.0.108:8000
+        await prefs.setString('token', data['token']);
         await prefs.setString('username', user['Username'] ?? '');
         await prefs.setString('role', user['Role'] ?? '');
 

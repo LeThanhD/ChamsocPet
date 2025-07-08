@@ -115,7 +115,7 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
             border: InputBorder.none,
           ),
         )
-            : const Text("📦 Các gói dịch vụ",
+            : const Text("📦 Danh sách dịch vụ",
             style: TextStyle(color: Colors.black)),
         actions: [
           IconButton(
@@ -162,27 +162,12 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
                   }
 
                   final services = snapshot.data!;
-                  final dogServices = services
-                      .where((s) => s.category.toUpperCase() == 'DOG')
-                      .toList();
-                  final catServices = services
-                      .where((s) => s.category.toUpperCase() == 'CAT')
-                      .toList();
-
-                  return ListView(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    children: [
-                      if (dogServices.isNotEmpty) ...[
-                        _buildCategoryTitle("🐶 Dịch vụ dành cho chó"),
-                        ...dogServices.map(_buildServiceCard),
-                      ],
-                      if (catServices.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        _buildCategoryTitle("🐱 Dịch vụ dành cho mèo"),
-                        ...catServices.map(_buildServiceCard),
-                      ],
-                    ],
+                  return ListView.builder(
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    itemCount: services.length,
+                    itemBuilder: (context, index) =>
+                        _buildServiceCard(services[index]),
                   );
                 },
               ),
@@ -207,16 +192,6 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
         child: const Icon(Icons.add, color: Colors.white),
       )
           : null,
-    );
-  }
-
-  Widget _buildCategoryTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
     );
   }
 

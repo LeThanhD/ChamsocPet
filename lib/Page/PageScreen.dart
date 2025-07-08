@@ -22,7 +22,8 @@ class PageScreen extends StatefulWidget {
 class _PageScreenState extends State<PageScreen> {
   int currentIndex = 0;
 
-  final GlobalKey<AppointmentPageState> _appointmentKey = GlobalKey();
+  // GlobalKey to manage AppointmentPage state
+  final GlobalKey<AppointmentPageState> _appointmentKey = GlobalKey<AppointmentPageState>();
 
   late final List<Widget> pages;
 
@@ -31,7 +32,7 @@ class _PageScreenState extends State<PageScreen> {
     super.initState();
     pages = [
       HomeContent(),
-      AppointmentPage(key: _appointmentKey),
+      AppointmentPage(key: _appointmentKey),  // Pass the key to AppointmentPage
       const ManageScreen(),
       const ProfilePage(),
     ];
@@ -130,10 +131,10 @@ class HomeContent extends StatelessWidget {
     );
   }
 
-  Widget _menuCard(BuildContext context, IconData icon, String label, Color color, Widget? page, {VoidCallback? onTap}) {
+  Widget _menuCard(BuildContext context, IconData icon, String label, Color color, Widget page, {VoidCallback? onTap}) {
     return InkWell(
       onTap: onTap ?? () {
-        if (page != null) Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+        Navigator.push(context, MaterialPageRoute(builder: (_) => page));
       },
       child: Container(
         decoration: BoxDecoration(

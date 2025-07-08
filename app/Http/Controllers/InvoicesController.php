@@ -11,6 +11,7 @@ use App\Models\InvoiceMedicine;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
+
 class InvoicesController extends Controller
 {
     // Tạo hóa đơn

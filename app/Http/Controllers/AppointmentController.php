@@ -7,7 +7,7 @@ use App\Models\Appointment;
 use App\Models\AppointmentHistory;
 use App\Models\Pet;
 use App\Models\Notification;
-use App\Models\User;
+use App\Models\Users;
 use App\Models\Medications;
 use App\Models\Invoices;
 use App\Models\Service;
@@ -17,11 +17,16 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\InvoicesController;
+use Kreait\Firebase\Messaging;
+use App\Services\FirebaseService;
+
 
 class AppointmentController extends Controller
 {
     // ✅ Tạo lịch hẹn
-   public function store(Request $request)
+ // ✅ Tạo lịch hẹn
+public function store(Request $request)
 {
     $user = Auth::user();
     $userId = $user ? $user->UserID : $request->input('UserID');
@@ -30,10 +35,12 @@ class AppointmentController extends Controller
         return response()->json(['message' => 'User chưa được xác thực hoặc thiếu UserID'], 401);
     }
 
+    // Validate input data
     $validator = Validator::make($request->all(), [
-        'PetID' => 'required|exists:Pets,PetID',
-        'ServiceIDs' => 'required|array|min:1',               // ✅ Danh sách dịch vụ
-        'ServiceIDs.*' => 'exists:Services,ServiceID',        // ✅ Từng ID phải hợp lệ
+        'PetID' => 'required|array|min:1',
+        'PetID.*' => 'exists:Pets,PetID',
+        'ServiceIDs' => 'required|array|min:1',
+        'ServiceIDs.*' => 'exists:Services,ServiceID',
         'AppointmentDate' => 'required|date',
         'AppointmentTime' => 'required|date_format:H:i:s',
         'Reason' => 'nullable|string',
@@ -45,100 +52,132 @@ class AppointmentController extends Controller
         return response()->json(['errors' => $validator->errors()], 422);
     }
 
-    $pet = Pet::find($request->PetID);
-    if (!$pet) return response()->json(['message' => 'Pet not found'], 404);
+    // Tạo lịch hẹn cho từng Pet, kiểm tra trùng lịch
+    $appointments = [];
 
-    $lastAppointment = Appointment::orderBy('AppointmentID', 'desc')->first();
-    $lastNumber = 0;
+    // Kiểm tra trùng lịch cho tất cả PetID trong yêu cầu
+    foreach ($request->PetID as $petId) {
+        $pet = Pet::find($petId);
+        if (!$pet) return response()->json(['message' => 'Pet not found'], 404);
 
-    if ($lastAppointment && preg_match('/APP(\d+)/', $lastAppointment->AppointmentID, $matches)) {
-        $lastNumber = intval($matches[1]);
-    }
+        // Kiểm tra trùng lịch hẹn cho pet của người dùng
+        $existingAppointments = Appointment::where('UserID', $userId)
+            ->where('AppointmentDate', $request->AppointmentDate)
+            ->where('AppointmentTime', $request->AppointmentTime)
+            ->whereIn('PetID', $request->PetID) // Kiểm tra tất cả các PetID
+            ->where('Status', '!=', 'Kết thúc')
+            ->exists();
 
-    $nextNumber = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
-    $sanitizedPetName = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $pet->Name));
-    $appointmentId = "APP{$nextNumber}{$sanitizedPetName}";
+        if ($existingAppointments) {
+            return response()->json(['message' => 'Một hoặc nhiều thú cưng đã có lịch hẹn vào ngày giờ này.'], 409);
+        }
 
-    $staffId = $request->input('StaffID') ?? User::where('role', 'staff')->inRandomOrder()->value('UserID');
+        // Kiểm tra lịch hẹn của người dùng khác tại cùng ngày và giờ
+        $otherUsersAppointments = Appointment::where('AppointmentDate', $request->AppointmentDate)
+            ->where('AppointmentTime', $request->AppointmentTime)
+            ->where('Status', '!=', 'Kết thúc')
+            ->where('UserID', '!=', $userId)  // Đảm bảo không trùng lịch với chính người dùng
+            ->exists();
 
-    // ✅ Tạo cuộc hẹn KHÔNG cần ServiceID đơn
-    $appointment = Appointment::create([
-        'AppointmentID' => $appointmentId,
-        'PetID' => $request->PetID,
-        'UserID' => $userId,
-        'AppointmentDate' => $request->AppointmentDate,
-        'AppointmentTime' => $request->AppointmentTime,
-        'Reason' => $request->Reason,
-        'Status' => $request->Status,
-        'StaffID' => $staffId,
-    ]);
+        if ($otherUsersAppointments) {
+            return response()->json(['message' => 'Đã có người dùng khác đặt lịch hẹn vào thời gian này'], 409);
+        }
 
-    // ✅ Lưu vào bảng appointment_service
-    foreach ($request->ServiceIDs as $serviceID) {
-        DB::table('appointment_service')->insert([
-            'appointment_id' => $appointmentId,
-            'service_id' => $serviceID,
-            'created_at' => now(),
-            'updated_at' => now(),
+        // Generate unique AppointmentID
+        $appointmentId = 'APP' . strtoupper(Str::random(6));
+
+        // Chọn nhân viên nếu chưa có
+        $staffId = $request->input('StaffID') ?? Users::where('role', 'staff')->inRandomOrder()->value('UserID');
+
+        // Create the appointment record
+        $appointment = Appointment::create([
+            'AppointmentID' => $appointmentId,
+            'PetID' => $petId,
+            'UserID' => $userId,
+            'AppointmentDate' => $request->AppointmentDate,
+            'AppointmentTime' => $request->AppointmentTime,
+            'Reason' => $request->Reason,
+            'Status' => $request->Status,
+            'StaffID' => $staffId,
         ]);
+
+        // Store the services for the appointment
+        foreach ($request->ServiceIDs as $serviceID) {
+            DB::table('appointment_service')->insert([
+                'appointment_id' => $appointmentId,
+                'service_id' => $serviceID,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        // Append the created appointment to the array
+        $appointments[] = $appointment->load(['user', 'services', 'pet', 'staff']);
     }
 
     return response()->json([
         'message' => 'Created successfully',
-        'data' => $appointment->load(['user', 'services', 'pet', 'staff']),
+        'data' => $appointments,
     ], 201);
 }
 
+
     // ✅ Lấy lịch hẹn theo người dùng
-        public function index(Request $request)
-    {
-        $userId = $request->query('UserID');
-        $search = $request->query('search');
-        $status = $request->query('status');
+    public function index(Request $request)
+{
+    $userId = $request->query('UserID');
+    $search = $request->query('search');
+    $status = $request->query('status');
 
-        if (!$userId) {
-            return response()->json(['message' => 'Missing UserID'], 400);
-        }
-
-        $appointments = Appointment::with(['user', 'pet', 'services', 'staff'])
-            ->where('UserID', $userId)
-            ->when($status !== null && $status !== 'all', function ($query) {
-                $query->where('Status', '!=', 'Kết thúc');
-            }) // Cho phép truyền status=all để hiển thị tất cả trạng thái
-            ->when($search, function ($query, $search) {
-                $query->whereHas('pet', function ($q) use ($search) {
-                    $q->where('Name', 'like', "%$search%");
-                })->orWhereHas('services', function ($q) use ($search) {
-                    $q->where('ServiceName', 'like', "%$search%");
-                });
-            })
-            ->orderByRaw("CASE 
-                WHEN Status = 'Chưa duyệt' THEN 1
-                WHEN Status = 'Đã duyệt' THEN 2
-                WHEN Status = 'Chờ khám' THEN 3
-                WHEN Status = 'Đang khám' THEN 4
-                WHEN Status = 'Hoàn tất dịch vụ' THEN 5
-                WHEN Status = 'Chờ thêm thuốc' THEN 6
-                WHEN Status = 'Kết thúc' THEN 7
-                ELSE 8 END")
-            ->orderBy('AppointmentDate', 'desc')
-            ->get()
-            ->map(function ($appointment) {
-                $appointment->services->transform(function ($service) {
-                    return [
-                        'ServiceID' => $service->ServiceID,
-                        'ServiceName' => $service->ServiceName,
-                        'Price' => $service->Price,
-                    ];
-                });
-                return $appointment;
-            });
-
-        return response()->json([
-            'success' => true,
-            'data' => $appointments,
-        ]);
+    // Kiểm tra xem UserID có tồn tại không
+    if (!$userId) {
+        return response()->json(['message' => 'Missing UserID'], 400);
     }
+
+    $appointments = Appointment::with(['user', 'pet', 'services', 'staff'])
+        ->where('UserID', $userId) // Lọc theo UserID
+        ->when($status && $status !== 'all', function ($query) use ($status) {
+            // Kiểm tra nếu status không phải 'all' thì loại bỏ 'Kết thúc'
+            $query->where('Status', '!=', 'Kết thúc');
+        })
+        ->when($search, function ($query, $search) {
+            // Tìm kiếm theo tên thú cưng và dịch vụ
+            $query->whereHas('pet', function ($q) use ($search) {
+                $q->where('Name', 'like', "%$search%");
+            })
+            ->orWhereHas('services', function ($q) use ($search) {
+                $q->where('ServiceName', 'like', "%$search%");
+            });
+        })
+        ->orderByRaw("CASE 
+            WHEN Status = 'Chưa duyệt' THEN 1
+            WHEN Status = 'Đã duyệt' THEN 2
+            WHEN Status = 'Chờ khám' THEN 3
+            WHEN Status = 'Đang khám' THEN 4
+            WHEN Status = 'Hoàn tất dịch vụ' THEN 5
+            WHEN Status = 'Chờ thêm thuốc' THEN 6
+            WHEN Status = 'Kết thúc' THEN 7
+            ELSE 8 END") // Sắp xếp theo trạng thái
+        ->orderBy('AppointmentDate', 'desc') // Sắp xếp theo ngày
+        ->get()
+        ->map(function ($appointment) {
+            // Chuyển đổi dịch vụ để trả về các trường cần thiết
+            $appointment->services->transform(function ($service) {
+                return [
+                    'ServiceID' => $service->ServiceID,
+                    'ServiceName' => $service->ServiceName,
+                    'Price' => $service->Price,
+                ];
+            });
+            return $appointment;
+        });
+
+    return response()->json([
+        'success' => true,
+        'data' => $appointments,  // Trả về danh sách các cuộc hẹn
+    ]);
+}
+
 
     // ✅ Lấy tất cả lịch hẹn cho nhân viên
     public function getAllAppointmentsForStaff(Request $request)
@@ -292,27 +331,55 @@ public function fetchServices(Request $request)
     ]);
 }
 
-    // ✅ Lấy danh sách giờ đã được đặt trong ngày
-    public function getBookedTimes(Request $request)
-    {
-        $date = $request->query('date');
-
-        if (!$date) {
-            return response()->json(['error' => 'Thiếu ngày'], 400);
-        }
-
-        $bookedTimes = DB::table('appointments')
-            ->whereDate('AppointmentDate', $date)
-            ->where('Status', 'Đã duyệt')
-            ->pluck('AppointmentTime')
-            ->map(function ($time) {
-                return Carbon::createFromFormat('H:i:s', $time)->format('H:i');
-            })
-            ->unique()
-            ->values();
-
-        return response()->json(['booked_times' => $bookedTimes]);
+public function checkAll(Request $request)
+{
+    $staffId = $request->query('staff_id');
+    $date = $request->query('date');
+    
+    if (!$staffId || !$date) {
+        return response()->json(['message' => 'Thiếu thông tin'], 400);  // Thiếu staff_id hoặc date
     }
+
+    // Lấy danh sách các thời gian đã đặt cho nhân viên trong ngày
+    $bookedTimes = DB::table('appointments')
+        ->whereDate('AppointmentDate', $date)
+        ->where('StaffID', $staffId)
+        ->whereIn('Status', ['Đã duyệt', 'Đang khám', 'Chờ khám', 'Hoàn tất dịch vụ'])
+        ->pluck('AppointmentTime');
+
+    return response()->json([
+        'booked_times' => $bookedTimes,  // Trả về các thời gian đã đặt cho nhân viên
+    ]);
+}
+
+    // ✅ Lấy danh sách giờ đã được đặt trong ngày
+    public function checkStaffAvailability(Request $request)
+{
+    $staffId = $request->query('staff_id');
+    $date = $request->query('date');
+    $time = $request->query('time');
+    $userId = $request->query('user_id');  // Thêm thông tin người dùng
+
+    // Kiểm tra xem có truyền đủ thông tin không
+    if (!$staffId || !$date || !$time || !$userId) {
+        return response()->json(['message' => 'Thiếu thông tin'], 400);
+    }
+
+    // Kiểm tra lịch hẹn đã có của nhân viên trong thời gian đó của người dùng khác
+    $existingAppointments = Appointment::where('StaffID', $staffId)
+        ->where('AppointmentDate', $date)
+        ->where('AppointmentTime', $time)
+        ->where('UserID', '!=', $userId)  // Kiểm tra lịch của người dùng khác
+        ->whereIn('Status', ['Đã duyệt', 'Chờ khám', 'Đang khám', 'Hoàn tất dịch vụ', 'Chờ thêm thuốc'])  // Kiểm tra các trạng thái từ 'Đã duyệt' trở lên
+        ->exists();
+
+    // Trả về kết quả
+    if ($existingAppointments) {
+        return response()->json(['available' => false]);
+    } else {
+        return response()->json(['available' => true]);
+    }
+}
 
     public function show($id)
     {
@@ -454,35 +521,137 @@ public function fetchServices(Request $request)
 
     //     return response()->json(['message' => 'Pet and related appointments deleted']);
     // }
+public function destroy(Request $request, $id)
+{
+    // Tìm lịch hẹn
+    $appointment = Appointment::find($id);
 
-    // ✅ Xóa một lịch hẹn cụ thể
-   public function destroy($id)
-    {
-        $appointment = Appointment::find($id);
-        if (!$appointment) {
-            return response()->json(['message' => 'Appointment not found'], 404);
-        }
-
-        // Chỉ cho phép xóa khi trạng thái là 'Chưa duyệt' hoặc 'Đã duyệt'
-        if (!in_array($appointment->Status, ['Chưa duyệt', 'Đã duyệt'])) {
-            return response()->json(['message' => 'Chỉ có thể xóa lịch hẹn ở trạng thái Chưa duyệt hoặc Đã duyệt'], 403);
-        }
-
-        // Xóa các dịch vụ liên quan trong bảng trung gian appointment_service
-        DB::table('appointment_service')->where('appointment_id', $appointment->AppointmentID)->delete();
-
-        // Xóa lịch sử liên quan
-        AppointmentHistory::where('AppointmentID', $appointment->AppointmentID)->delete();
-
-        // Xóa hóa đơn nếu có
-        Invoices::where('AppointmentID', $appointment->AppointmentID)->delete();
-
-        // Xóa cuộc hẹn
-        $appointment->delete();
-
-       return response()->json([
-            'message' => 'những lịch hẹn chưa duyệt hoặc đã duyệt thôi'
-        ], 403);
-
+    if (!$appointment) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Không tìm thấy lịch hẹn với ID: ' . $id
+        ], 404);
     }
+
+    // Kiểm tra trạng thái của lịch hẹn, không cho phép xóa nếu trạng thái là "Chờ khám" trở lên
+    $blockedStatuses = ['Chờ khám', 'Đang khám', 'Hoàn tất dịch vụ', 'Chờ thêm thuốc', 'Kết thúc'];
+    if (in_array($appointment->Status, $blockedStatuses)) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Lịch hẹn không thể xóa khi đang ở trạng thái "Chờ khám" hoặc cao hơn'
+        ], 403);
+    }
+
+    // Kiểm tra UserID có hợp lệ không
+    if (!$appointment->UserID) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Không có UserID cho lịch hẹn này.'
+        ], 400);
+    }
+
+    // Nếu người dùng không phải là admin, yêu cầu nhập lý do khi xóa
+    $reason = $request->input('reason', '');
+    if (empty($reason)) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Lý do xóa lịch hẹn là bắt buộc.'
+        ], 400);
+    }
+
+    // Kiểm tra nếu lý do xóa hợp lệ (dành cho các lý do khác)
+    if ($reason == 'Khác') {
+        $reason = $request->input('custom_reason', '');  // Nhận lý do cụ thể cho "Khác"
+        if (empty($reason)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Lý do xóa không thể bỏ trống khi chọn "Khác"'
+            ], 400);
+        }
+    }
+
+    // Lưu lý do xóa vào bảng appointment_deletions
+    DB::table('appointment_deletions')->insert([
+        'appointment_id' => $appointment->AppointmentID,
+        'reason' => $reason,
+        'created_at' => now(),
+    ]);
+
+    // Cập nhật lịch sử lý do xóa vào bảng AppointmentHistory
+    AppointmentHistory::create([
+        'HistoryID' => 'HIS' . strtoupper(Str::random(6)),
+        'AppointmentID' => $appointment->AppointmentID,
+        'UpdatedAt' => now(),
+        'StatusBefore' => $appointment->Status,
+        'StatusAfter' => 'Đã hủy',
+        'Note' => "Lý do hủy: $reason", // Ghi lại lý do hủy
+    ]);
+
+    // Xóa dịch vụ liên quan trong bảng appointment_service
+    DB::table('appointment_service')->where('appointment_id', $appointment->AppointmentID)->delete();
+
+    // Xóa lịch sử liên quan từ AppointmentHistory
+    AppointmentHistory::where('AppointmentID', $appointment->AppointmentID)->delete();
+
+    // Xóa hóa đơn nếu có
+    Invoices::where('AppointmentID', $appointment->AppointmentID)->delete();
+
+    // Xóa cuộc hẹn
+    $appointment->delete();
+
+    // Lấy thông tin người dùng từ bảng Users
+    $user = Users::find($appointment->UserID);  // Lấy người dùng qua ID người dùng từ lịch hẹn
+
+    // Kiểm tra người dùng và gửi thông báo đẩy nếu tồn tại
+    if ($user && $user->fcm_token) {
+        // Gửi thông báo đẩy qua Firebase
+        $firebase = new FirebaseService();
+        $firebase->sendNotificationWithData(
+            $user->fcm_token,
+            'Lịch hẹn đã bị xóa',
+            "Lý do: $reason",
+            [
+                'action' => 'appointment_deleted',
+                'appointment_id' => $appointment->AppointmentID,
+                'reason' => $reason,
+                'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+            ]
+        );
+
+        // Lưu thông báo vào DB
+        $lastNotificationId = Notification::max('id');
+        $lastNumber = 0;
+
+        if ($lastNotificationId && preg_match('/^NOTI(\d+)$/', $lastNotificationId, $matches)) {
+            $lastNumber = (int)$matches[1]; // Lấy số từ ID (ví dụ "001" từ "NOTI001")
+        }
+
+        // Tạo ID mới
+        $nextNumber = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
+        $notificationId = 'NOTI' . $nextNumber;
+
+        // Tạo thông báo
+        Notification::create([
+            'id' => $notificationId,
+            'user_id' => $user->UserID, // Đảm bảo đã có user_id từ user
+            'title' => 'Lịch hẹn đã bị hủy',
+            'message' => "Lý do: $reason",
+            'is_read' => false,
+            'action' => 'appointment_deleted', // Thêm action vào
+        ]);
+    } else {
+        // Nếu không tìm thấy người dùng, trả về lỗi
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Không tìm thấy người dùng liên quan đến lịch hẹn.'
+        ], 404);
+    }
+
+    return response()->json([
+        'status' => 'success',
+        'message' => "Lịch hẹn đã bị hủy. Lý do: $reason",
+        'appointment_id' => $appointment->AppointmentID,
+        'reason' => $reason
+    ], 200);
+}
 }

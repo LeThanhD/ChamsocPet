@@ -6,6 +6,11 @@ use Illuminate\Http\Request;
 use App\Models\Notification;
 use App\Models\Users;
 use App\Services\FirebaseService;
+use App\Models\Appointment;
+use App\Models\AppointmentHistory;
+use App\Models\Invoices;
+use DB;
+use Str;
 
 class NotificationController extends Controller
 {
@@ -27,11 +32,13 @@ class NotificationController extends Controller
 
         // Sinh mã NOTIxxx
         $latest = Notification::orderByDesc('id')->first();
-        $nextIdNumber = 1;
+        $nextNumber = 1;
+
         if ($latest && preg_match('/^NOTI(\d+)$/', $latest->id, $matches)) {
-            $nextIdNumber = (int)$matches[1] + 1;
+            $nextNumber = (int)$matches[1] + 1;  // Đảm bảo làm việc với kiểu số ở đây
         }
-        $notificationId = 'NOTI' . str_pad($nextIdNumber, 3, '0', STR_PAD_LEFT);
+
+        $notificationId = 'NOTI' . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
 
         // Lưu DB
         Notification::create([
@@ -43,53 +50,7 @@ class NotificationController extends Controller
         ]);
     }
 
-    // ✅ Client gửi để tạo thông báo + gửi FCM
-    public function store(Request $request)
-    {
-        $request->validate([
-            'user_id' => 'required|string',
-            'title' => 'required|string',
-            'message' => 'required|string',
-        ]);
-
-        $user = Users::find($request->user_id);
-        if (!$user || !$user->fcm_token) {
-            return response()->json(['message' => 'Không có token FCM'], 400);
-        }
-
-        // Gửi FCM bằng FirebaseService
-        $firebase = new FirebaseService();
-        try {
-            $firebase->sendNotificationWithData($user->fcm_token, $request->title, $request->message, [
-                'action' => 'payment_approved',
-                'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
-            ]);
-        } catch (\Throwable $e) {
-            return response()->json(['message' => '❌ Lỗi gửi FCM', 'error' => $e->getMessage()], 500);
-        }
-
-        // Sinh mã NOTIxxx
-        $latest = Notification::orderByDesc('id')->first();
-        $nextIdNumber = 1;
-        if ($latest && preg_match('/^NOTI(\d+)$/', $latest->id, $matches)) {
-            $nextIdNumber = (int)$matches[1] + 1;
-        }
-        $notificationId = 'NOTI' . str_pad($nextIdNumber, 3, '0', STR_PAD_LEFT);
-
-        // Lưu DB
-        Notification::create([
-            'id' => $notificationId,
-            'user_id' => $request->user_id,
-            'title' => $request->title,
-            'message' => $request->message,
-            'is_read' => false,
-        ]);
-
-        return response()->json(['message' => '📢 Đã gửi và lưu thông báo']);
-    }
-
-    // ✅ Lấy danh sách thông báo
-    public function index(Request $request)
+ public function index(Request $request)
     {
         $userId = $request->query('UserID');
         $search = $request->query('search');
@@ -123,20 +84,13 @@ class NotificationController extends Controller
         ]);
     }
 
-    // ✅ Trả về danh sách thông báo theo user
-    public function getUserNotifications($userId)
-    {
-        return Notification::where('user_id', $userId)
-            ->orderByDesc('id')
-            ->get();
-    }
-
     // ✅ Đánh dấu đã đọc
     public function markAsRead($id)
     {
         $notification = Notification::find($id);
+
         if (!$notification) {
-            return response()->json(['message' => 'Không tìm thấy thông báo'], 404);
+            return response()->json(['message' => 'Thông báo không tồn tại'], 404);
         }
 
         $notification->is_read = true;
@@ -145,32 +99,28 @@ class NotificationController extends Controller
         return response()->json(['message' => 'Đã đánh dấu đã đọc']);
     }
 
-     public function unreadCount(Request $request)
-    {
-        // Lấy userId từ user đăng nhập hoặc query param
-        $userId = $request->user()->UserID ?? $request->query('user_id');
 
-        if (!$userId) {
-            return response()->json(['error' => 'Thiếu user_id'], 400);
-        }
+    // ✅ Xoá lịch hẹn và gửi thông báo đẩy
+   public function destroy($id)
+{
+    // Tìm thông báo theo ID
+    $notification = Notification::find($id);
 
-        $count = Notification::where('user_id', $userId)
-            ->where('is_read', false)
-            ->count();
-
-        return response()->json(['unread_count' => $count]);
+    // Nếu không tìm thấy
+    if (!$notification) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Không tìm thấy thông báo với ID: ' . $id
+        ], 404);
     }
-    
-    // ✅ Xoá thông báo
-    public function destroy($id)
-    {
-        $notification = Notification::find($id);
-        if (!$notification) {
-            return response()->json(['message' => 'Không tìm thấy thông báo'], 404);
-        }
 
-        $notification->delete();
+    // Xóa thông báo
+    $notification->delete();
 
-        return response()->json(['message' => 'Đã xóa thông báo']);
-    }
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Thông báo đã được xóa.',
+        'notification_id' => $id,
+    ], 200);
+}
 }

@@ -10,7 +10,7 @@ use App\Models\Invoices;
 use App\Models\Payment;
 use App\Models\Service;
 use App\Models\Medication;
-
+use App\Http\Controllers\InvoicesController; 
 
 class PetController extends Controller
 {
@@ -62,12 +62,12 @@ class PetController extends Controller
         ]);
     }
 
-    // Lấy danh sách InvoiceID đã có payment "đã duyệt" (hoặc trạng thái tương ứng)
-    $paidInvoiceIds = Payment::whereIn('InvoiceID', $invoiceIds)
+    // Lấy các invoice đã thanh toán (đã duyệt)
+    $paidPayments = Payment::whereIn('InvoiceID', $invoiceIds)
         ->where('Status', 'đã duyệt')
-        ->pluck('InvoiceID');
+        ->get();
 
-    if ($paidInvoiceIds->isEmpty()) {
+    if ($paidPayments->isEmpty()) {
         return response()->json([
             'message' => 'Pet chưa sử dụng dịch vụ hay thuốc nào.',
             'services' => [],
@@ -75,34 +75,50 @@ class PetController extends Controller
         ]);
     }
 
-    // Lấy các hóa đơn đã được thanh toán (có trong danh sách paidInvoiceIds)
+    $paidInvoiceIds = $paidPayments->pluck('InvoiceID')->toArray();
+    $paymentTimes = $paidPayments->pluck('PaymentTime', 'InvoiceID'); // [InvoiceID => PaymentTime]
+
+    // Lấy các hóa đơn kèm dịch vụ và thuốc
     $invoices = Invoices::with(['services', 'medications'])
         ->whereIn('InvoiceID', $paidInvoiceIds)
         ->get();
 
-    // Gộp danh sách dịch vụ và thuốc từ tất cả hóa đơn, loại bỏ trùng lặp
-    $allServices = collect();
-    $allMedications = collect();
+    $serviceResults = [];
+    $medicationResults = [];
 
     foreach ($invoices as $invoice) {
-        if ($invoice->services) {
-            $allServices = $allServices->merge($invoice->services);
+        $usedTime = $paymentTimes[$invoice->InvoiceID] ?? null;
+
+        foreach ($invoice->services as $service) {
+            $serviceResults[] = [
+                'ServiceID' => $service->ServiceID,
+                'ServiceName' => $service->ServiceName,
+                'Description' => $service->Description,
+                'Price' => $service->Price,
+                'CategoryID' => $service->CategoryID,
+                'InvoiceID' => $invoice->InvoiceID,
+                'UsedTime' => $usedTime,
+            ];
         }
-        if ($invoice->medications) {
-            $allMedications = $allMedications->merge($invoice->medications);
+
+        foreach ($invoice->medications as $med) {
+            $medicationResults[] = [
+                'MedicationID' => $med->MedicationID,
+                'Name' => $med->Name,
+                'Price' => $med->Price,
+                'InvoiceID' => $invoice->InvoiceID,
+                'UsedTime' => $usedTime,
+            ];
         }
     }
 
-    // Loại trùng dựa trên ID
-    $uniqueServices = $allServices->unique('ServiceID')->values();
-    $uniqueMedications = $allMedications->unique('MedicationID')->values();
-
     return response()->json([
         'message' => 'Danh sách dịch vụ và thuốc đã sử dụng',
-        'services' => $uniqueServices,
-        'medications' => $uniqueMedications,
+        'services' => $serviceResults,
+        'medications' => $medicationResults,
     ]);
 }
+
 
     // Lấy thú cưng của user cụ thể (chỉ chính chủ mới xem được)
     public function getPetsByUser(Request $request, $userId)

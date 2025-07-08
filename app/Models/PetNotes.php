@@ -12,20 +12,16 @@ class PetNotes extends Model
 {
     use HasFactory;
 
-    // Tên bảng trong cơ sở dữ liệu
     protected $table = 'PetNotes';
-
-    // Khóa chính
     protected $primaryKey = 'NoteID';
-
-    // Không tự động tăng khóa chính
     public $incrementing = false;
-    protected $keyType = 'string'; 
+    protected $keyType = 'string';
 
-    // Không sử dụng timestamps mặc định (created_at, updated_at)
     public $timestamps = false;
 
-    // Các cột có thể ghi dữ liệu
+    // Thêm dòng này:
+    const CREATED_AT = 'CreatedAt';
+
     protected $fillable = [
         'NoteID',
         'PetID',
@@ -34,7 +30,6 @@ class PetNotes extends Model
         'CreatedAt'
     ];
 
-    // Quan hệ: Mỗi ghi chú thuộc về 1 thú cưng
     public function pet()
     {
         return $this->belongsTo(Pet::class, 'PetID', 'PetID');
@@ -45,7 +40,6 @@ class PetNotes extends Model
         return $this->belongsTo(User::class, 'CreatedBy', 'UserID');
     }
 
-    // Pet.php
     public function latest_note()
     {
         return $this->hasOne(PetNotes::class, 'PetID', 'PetID')->latestOfMany();
@@ -56,3 +50,4 @@ class PetNotes extends Model
         return $this->belongsTo(Service::class, 'ServiceID', 'ServiceID');
     }
 }
+

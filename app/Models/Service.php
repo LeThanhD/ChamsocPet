@@ -20,7 +20,8 @@ class Service extends Model
         'ServiceName',
         'Description',
         'Price',
-        'CategoryID'
+        'CategoryID',
+        'usage_count'
     ];
 
     // Quan hệ với bảng ServiceCategory

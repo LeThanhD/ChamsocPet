@@ -21,6 +21,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OCRController;
 
 
+
 // 📸 Xử lý OCR hóa đơn từ ảnh (không cần đăng nhập)
 Route::post('/ocr/extract', [OCRController::class, 'extractText']);
 
@@ -37,9 +38,13 @@ Route::prefix('/users')->controller(UsersController::class)->group(function () {
     Route::delete('/{id}', 'destroy');
     Route::post('/send-reset-code', 'sendResetCode');
     Route::post('/reset-password', 'resetPassword');
+    Route::get('/statistics/TotalAmount/human', 'getSystemStatistics');
     Route::post('/force-reset-password', 'forceResetPassword');
     Route::get('/staff',  'index');
     Route::post('/update-token', 'updateToken');
+    Route::get('/full/{id}/detail', 'getUserFullDetail');
+    Route::get('/payment/history/total/Amount/{id}', 'getUserPaymentHistory');
+    Route::get('/with/completed/appointments/all/histories', 'getUserWithCompletedAppointments');
 });
 
 Route::prefix('/appointments')->controller(AppointmentController::class)->group(function () {
@@ -52,8 +57,9 @@ Route::prefix('/appointments')->controller(AppointmentController::class)->group(
     Route::get('/get-service-name', 'getServiceName');
     Route::delete('/{id}', 'destroy');
     Route::get('/check', 'checkConflict');
+    Route::get('/check-all', 'checkAll');
     Route::put('/update-service/{id}', 'updateService');
-    Route::get('/check-all', 'getBookedTimes');
+    Route::get('/check-staff-availability', 'checkStaffAvailability');
     Route::get('/{id}', 'show');
     // Route::delete('/del/{id}', 'deleteAppointment');
 });
@@ -116,6 +122,8 @@ Route::prefix('/pets')->controller(PetController::class)->group(function () {
         Route::delete('/{id}', 'destroy');    
         Route::get('/{user_id}', 'getUserNotifications');
         Route::get('unread-count', 'unreadCount');
+        Route::delete('/clear', 'clearAll');
+
     });
 
 

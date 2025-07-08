@@ -11,10 +11,14 @@ use App\Models\Pet;
 use App\Models\Appointment;
 use App\Models\MedicalRecord;
 use App\Models\Prescription;
-use App\Models\Invoice;
+use App\Models\Invoices;
 use App\Models\UserLog;
 use App\Models\Notification;
 use App\Services\FirebaseService;
+use App\Http\Controllers\InvoicesController; 
+use Carbon\Carbon;
+use App\Models\AppointmentHistory;
+use Illuminate\Support\Facades\DB;
 
 class UsersController extends Controller
 {
@@ -57,6 +61,165 @@ class UsersController extends Controller
 
         return response()->json(['data' => $users]);
     }
+
+public function getUserFullDetail($id)
+{
+    // Lấy thông tin người dùng
+    $user = Users::where('UserID', $id)->first();
+
+    if (!$user) {
+        return response()->json(['message' => 'Người dùng không tồn tại'], 404);
+    }
+
+    // Lấy danh sách PetID thuộc User này
+    $petIDs = Pet::where('UserID', $id)->pluck('PetID')->toArray();
+
+    // Thú cưng
+    $pets = Pet::where('UserID', $id)->get(['Name as PetName', 'Species', 'Gender']);
+
+    // Dịch vụ đã sử dụng (qua hóa đơn và bảng invoice_service)
+    $serviceRecords = \DB::table('invoices')
+        ->join('invoice_service', 'invoices.InvoiceID', '=', 'invoice_service.InvoiceID')
+        ->join('services', 'invoice_service.ServiceID', '=', 'services.ServiceID')
+        ->where(function ($query) use ($id, $petIDs) {
+            $query->whereIn('invoices.PetID', $petIDs);
+        })
+        ->where('invoices.Status', 'paid')
+        ->select('services.ServiceName', 'invoices.CreatedAt as Date')
+        ->distinct()
+        ->get();
+
+    // Thuốc đã sử dụng (qua bảng invoice_medicines)
+    $medicineRecords = \DB::table('invoices')
+        ->join('invoice_medicines', 'invoices.InvoiceID', '=', 'invoice_medicines.InvoiceID')
+        ->join('medications', 'invoice_medicines.MedicineID', '=', 'medications.MedicationID')
+        ->join('pets', 'invoices.PetID', '=', 'pets.PetID')
+        ->where('pets.UserID', $id)
+        ->where('invoices.Status', 'paid')
+        ->select('medications.Name as MedicineName', 'invoices.CreatedAt as Date')
+        ->distinct()
+        ->get();
+
+    // Trả về kết quả
+    return response()->json([
+        'user' => [
+            'UserID'     => $user->UserID,
+            'FullName'   => $user->FullName,
+            'Email'      => $user->Email,
+            'BirthDate'  => $user->BirthDate,
+            'Status'     => $user->Status,
+            'Phone'      => $user->Phone,
+            'Gender'     => $user->Gender,
+            'Address'    => $user->Address,
+            'NationalID' => $user->NationalID,
+            'Role'       => $user->Role,
+            'Image'      => $user->ProfilePicture,
+        ],
+        'pets' => $pets,
+        'services' => $serviceRecords,
+        'medicines' => $medicineRecords
+    ]);
+}
+public function getUserPaymentHistory($userId)
+{
+    // Lấy thông tin người dùng
+    $user = \DB::table('users')->where('UserID', $userId)->first();
+    if (!$user) {
+        return response()->json(['message' => 'Người dùng không tồn tại'], 404);
+    }
+
+    // Lấy danh sách PetID của người dùng
+    $petIDs = \DB::table('pets')->where('UserID', $userId)->pluck('PetID');
+
+    // Lấy lịch sử thanh toán của các hóa đơn thuộc các thú cưng này
+    $paymentHistory = \DB::table('payments')
+        ->join('invoices', 'payments.InvoiceID', '=', 'invoices.InvoiceID')
+        ->whereIn('invoices.PetID', $petIDs)
+        ->select(
+            'payments.PaidAmount',
+            'payments.PaymentTime',
+            'invoices.InvoiceID',
+            'invoices.PetID'
+        )
+        ->orderBy('payments.PaymentTime', 'desc')
+        ->get();
+
+    // Lấy dịch vụ theo từng hóa đơn
+    $invoiceServices = \DB::table('invoice_service')
+        ->join('services', 'invoice_service.ServiceID', '=', 'services.ServiceID')
+        ->select('invoice_service.InvoiceID', 'services.ServiceName')
+        ->get()
+        ->groupBy('InvoiceID');
+
+    // Lấy thuốc theo từng hóa đơn
+    $invoiceMedicines = \DB::table('invoice_medicines')
+        ->join('medications', 'invoice_medicines.MedicineID', '=', 'medications.MedicationID')
+        ->select('invoice_medicines.InvoiceID', 'medications.Name as MedicineName')
+        ->get()
+        ->groupBy('InvoiceID');
+
+    // Ghép dữ liệu lại
+    $results = $paymentHistory->map(function ($item) use ($invoiceServices, $invoiceMedicines) {
+        return [
+            'invoice_id' => $item->InvoiceID,
+            'pet_id' => $item->PetID,
+            'paid_amount' => $item->PaidAmount,
+            'payment_time' => $item->PaymentTime,
+            'services' => $invoiceServices->get($item->InvoiceID)?->pluck('ServiceName')->toArray() ?? [],
+            'medicines' => $invoiceMedicines->get($item->InvoiceID)?->pluck('MedicineName')->toArray() ?? [],
+        ];
+    });
+
+    return response()->json([
+        'user_id' => $userId,
+        'user_name' => $user->FullName ?? 'Không rõ',
+        'payments' => $results,
+    ]);
+}
+
+  // Controller UsersController
+public function getUserWithCompletedAppointments() 
+{
+    $users = Users::whereHas('appointments', function ($query) {
+            $query->where('Status', 'Kết thúc');
+        })
+        ->select('UserID', 'FullName', 'BirthDate')
+        ->distinct()
+        ->get();
+
+    return response()->json([
+        'count' => $users->count(),
+        'users' => $users
+    ]);
+}
+
+
+
+    public function getSystemStatistics(Request $request)
+{
+    $start = Carbon::now()->startOfMonth();
+    $end = Carbon::now()->endOfMonth();
+
+    // 👉 Tổng thu từ bảng payments (PaidAmount)
+    $totalIncome = DB::table('payments')
+        ->whereBetween('PaymentTime', [$start, $end])
+        ->sum('PaidAmount');
+
+    // 👉 Số người dùng đã hoàn tất lịch hẹn từ bảng AppointmentHistory
+    $completedUsers = AppointmentHistory::with('appointment')
+        ->where('StatusAfter', 'Kết thúc')
+        ->whereBetween('UpdatedAt', [$start, $end])
+        ->get()
+        ->pluck('appointment.UserID')
+        ->unique()
+        ->count();
+
+    return response()->json([
+        'total_income' => $totalIncome,
+        'completed_users' => $completedUsers,
+    ]);
+}
+
 
     public function sendResetCode(Request $request)
     {

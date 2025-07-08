@@ -66,6 +66,12 @@ class Appointment extends Model
     }
 
 
+    // ✅ Quan hệ đến bảng appointment_deletions (Lý do xóa)
+    public function deletions()
+    {
+        return $this->hasMany(AppointmentDeletion::class, 'appointment_id', 'AppointmentID');
+    }
+
 
     // ✅ Quan hệ đến lịch sử cuộc hẹn
     public function histories()

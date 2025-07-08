@@ -6,7 +6,6 @@ use Kreait\Firebase\Factory;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
 
-
 class FCMNotification
 {
     protected static function messaging()

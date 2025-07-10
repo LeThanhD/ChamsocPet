@@ -216,9 +216,11 @@ class _MedicinePageState extends State<MedicinePage> {
         ),
       ),
       floatingActionButton: isAdmin
-          ? FloatingActionButton(
-        backgroundColor: Colors.deepPurple,
-        child: const Icon(Icons.add),
+          ? FloatingActionButton.extended(
+        backgroundColor: Colors.deepPurpleAccent,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('Thêm thuốc'),
         onPressed: () async {
           final result = await Navigator.push(
             context,

@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+
+import '../Pet/AddPetScreen.dart';
+
 class AppointmentScreen extends StatefulWidget {
   @override
   _AppointmentScreenState createState() => _AppointmentScreenState();
@@ -12,10 +15,17 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
   final TextEditingController noteController = TextEditingController();
   String? userId;
   String? selectedTime;
-  List<String> selectedPetIDs = []; // Sử dụng danh sách để lưu nhiều PetID
   String? selectedStaffID;
   DateTime? selectedDate;
+  bool isSearching = false;
+  TextEditingController searchController = TextEditingController();
 
+  List<Map<String, String>> allBookedSlots = [];
+  List<String> selectedPetIDs = [];
+  Map<String, List<dynamic>> filteredServicesBySpecies = {};
+  List<String> bookedTimes = [];
+  Map<String, List<dynamic>> servicesBySpecies = {};
+  Set<String> selectedSpeciesList = {};
   List<String> selectedServiceIDs = [];
   List<String> availableTimes = [];
   List<dynamic> petList = [];
@@ -33,7 +43,6 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
     userId = prefs.getString('user_id');
     if (userId == null) return;
     await fetchPets();
-    await fetchServices();
     await fetchStaff();
   }
 
@@ -62,17 +71,44 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
     }
   }
 
-  Future<void> fetchServices() async {
+  void filterServices(String value) {
+    if (value.trim().isEmpty) {
+      setState(() {
+        filteredServicesBySpecies = Map.from(servicesBySpecies);
+      });
+      return;
+    }
+
+    final keyword = value.trim().toLowerCase();
+    final Map<String, List<dynamic>> filtered = {};
+
+    servicesBySpecies.forEach((species, services) {
+      final matched = services.where((s) =>
+          (s['ServiceName'] ?? '').toLowerCase().contains(keyword)).toList();
+
+      if (matched.isNotEmpty) {
+        filtered[species] = matched;
+      }
+    });
+
+    setState(() {
+      filteredServicesBySpecies = filtered;
+    });
+  }
+
+
+  Future<void> fetchAllBookedSlots(String staffId) async {
     final response = await http.get(
-      Uri.parse('http://192.168.0.108:8000/api/services/all'),
-      headers: {'Accept': 'application/json'},
+      Uri.parse('http://192.168.0.108:8000/api/appointments/staff/booked/slots?staff_id=$staffId'),
     );
 
     if (response.statusCode == 200) {
-      final decoded = jsonDecode(response.body);
-      final List<dynamic> services = decoded['data']['data'];
+      final data = jsonDecode(response.body)['data'] as List;
       setState(() {
-        serviceList = services;
+        allBookedSlots = data.map<Map<String, String>>((item) => {
+          'date': item['AppointmentDate'].toString().split('T')[0],
+          'time': item['AppointmentTime'].toString().substring(0, 5),
+        }).toList();
       });
     }
   }
@@ -88,7 +124,8 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(response.body)['data'];
+      final decoded = jsonDecode(response.body);
+      final List<dynamic> data = decoded['data'] ?? [];
       setState(() {
         staffList = data;
         if (data.isNotEmpty) {
@@ -98,9 +135,9 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
     }
   }
 
+
   Future<void> fetchAvailableTimes(DateTime date) async {
-    final dateStr = date.toIso8601String().split(
-        'T')[0]; // Chuyển ngày thành chuỗi yyyy-mm-dd
+    final dateStr = date.toIso8601String().split('T')[0];
     final response = await http.get(
       Uri.parse(
           'http://192.168.0.108:8000/api/appointments/check-all?date=$dateStr&staff_id=$selectedStaffID'),
@@ -112,16 +149,16 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
       final List<String> allSlots = [
         "08:00", "09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"
       ];
-      final List<String> booked = List<String>.from(
-          decoded['booked_times'] ?? []);
+      final List<String> booked = List<String>.from(decoded['booked_times'] ?? []);
 
       setState(() {
-        availableTimes =
-            allSlots.where((time) => !booked.contains(time)).toList();
+        bookedTimes = booked; // ✅ gán danh sách giờ bị trùng
+        availableTimes = allSlots.where((time) => !booked.contains(time)).toList();
         if (!availableTimes.contains(selectedTime)) selectedTime = null;
       });
     }
   }
+
 
 
   // Kiểm tra lịch hẹn của nhân viên trước khi tạo mới
@@ -144,6 +181,30 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
       return false; // Nếu có lỗi hoặc không thể kiểm tra, giả định là không trống
     }
   }
+
+  Future<void> fetchServicesBySpecies() async {
+    Map<String, List<dynamic>> tempMap = {}; // Tạm lưu kết quả
+
+    for (String species in selectedSpeciesList) {
+      final response = await http.get(
+        Uri.parse('http://192.168.0.108:8000/api/appointments/services/by-species?species=$species'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        final List<dynamic> services = decoded['data'];
+        tempMap[species] = services;
+      }
+    }
+
+    setState(() {
+      servicesBySpecies = tempMap;
+      selectedServiceIDs = []; // Reset khi đổi thú cưng
+      filteredServicesBySpecies = Map.from(tempMap); // <- thêm dòng này
+    });
+  }
+
 
   Future<void> submitAppointment() async {
     if (selectedPetIDs.isEmpty || selectedServiceIDs.isEmpty ||
@@ -226,30 +287,79 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Chọn thú cưng",
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text("Chọn thú cưng",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            TextButton.icon(
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => AddPetScreen()),
+                );
+                if (result == 'added') {
+                  await fetchPets(); // Tải lại danh sách thú cưng
+                }
+              },
+              icon: const Icon(Icons.add_circle_outline, size: 20),
+              label: const Text("Thêm"),
+              style: TextButton.styleFrom(foregroundColor: Colors.deepPurple),
+            ),
+          ],
+        ),
         const SizedBox(height: 10),
+        if (petList.isEmpty)
+          const Text("⚠️ Bạn chưa có thú cưng nào!", style: TextStyle(color: Colors.red)),
         ...petList.map((pet) {
           return CheckboxListTile(
             title: Text(pet['Name'] ?? 'Không tên'),
             value: selectedPetIDs.contains(pet['PetID']?.toString()),
-            onChanged: (bool? selected) {
-              setState(() {
-                if (selected == true) {
-                  selectedPetIDs.add(pet['PetID']?.toString() ?? '');
-                } else {
-                  selectedPetIDs.remove(pet['PetID']?.toString());
-                }
-              });
-            },
+              onChanged: (bool? selected) {
+                final petID = pet['PetID']?.toString() ?? '';
+                final species = pet['Species']?.toString() ?? '';
+
+                setState(() {
+                  if (selected == true) {
+                    selectedPetIDs.add(petID);
+                    selectedSpeciesList.add(species);
+                  } else {
+                    selectedPetIDs.remove(petID);
+
+                    // ⚠️ Chỉ xóa species nếu không còn thú cưng nào khác có cùng species
+                    final remainingSpecies = petList.where((p) =>
+                    selectedPetIDs.contains(p['PetID'].toString()) &&
+                        p['Species'] == species
+                    );
+
+                    if (remainingSpecies.isEmpty) {
+                      selectedSpeciesList.remove(species);
+                    }
+                  }
+
+                  if (selectedPetIDs.isEmpty) {
+                    serviceList = [];
+                    selectedServiceIDs = [];
+                    selectedSpeciesList.clear();
+                  }
+
+                  fetchServicesBySpecies(); // Cập nhật dịch vụ theo danh sách species mới
+                });
+              }
           );
         }).toList(),
       ],
     );
   }
 
-  Widget _buildDropdown(String label, String? value,
-      List<DropdownMenuItem<String>> items, void Function(String?)? onChanged) {
+
+  Widget _buildDropdown(
+      String label,
+      String? value,
+      List<DropdownMenuItem<String>> items,
+      void Function(String?)? onChanged, {
+        InputDecoration? decoration,
+      }) {
     final currentValueExists = value != null &&
         items.any((item) => item.value == value);
 
@@ -258,7 +368,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
       child: DropdownButtonFormField<String>(
         value: currentValueExists ? value : null,
         onChanged: onChanged,
-        decoration: InputDecoration(
+        decoration: decoration ?? InputDecoration(
           labelText: label,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
           filled: true,
@@ -334,70 +444,183 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
                     const SizedBox(height: 12),
                     Card(
                       elevation: 2,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: selectedPetIDs.isEmpty
+                            ? const Text("⚠️ Vui lòng chọn thú cưng trước", style: TextStyle(color: Colors.red))
+                            : servicesBySpecies.isEmpty
+                            ? const Text("⚠️ Không có dịch vụ nào phù hợp với loài thú cưng đã chọn", style: TextStyle(color: Colors.red))
+                            : DefaultTabController(
+                          length: filteredServicesBySpecies.length,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    "Chọn dịch vụ",
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                                  ),
+                                  IconButton(
+                                    icon: Icon(isSearching ? Icons.close : Icons.search),
+                                    onPressed: () {
+                                      setState(() {
+                                        isSearching = !isSearching;
+                                        if (!isSearching) {
+                                          searchController.clear();
+                                          filteredServicesBySpecies = Map.from(servicesBySpecies);
+                                        }
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                              if (isSearching)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: TextField(
+                                    controller: searchController,
+                                    onChanged: (value) => filterServices(value),
+                                    decoration: InputDecoration(
+                                      hintText: 'Nhập tên dịch vụ...',
+                                      prefixIcon: const Icon(Icons.search),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 10),
+                              if (filteredServicesBySpecies.isNotEmpty) ...[
+                                TabBar(
+                                  isScrollable: true,
+                                  labelColor: Colors.deepPurple,
+                                  unselectedLabelColor: Colors.black54,
+                                  indicatorColor: Colors.deepPurple,
+                                  tabs: filteredServicesBySpecies.keys
+                                      .map((species) => Tab(text: species))
+                                      .toList(),
+                                ),
+                                SizedBox(
+                                  height: 250,
+                                  child: TabBarView(
+                                    children: filteredServicesBySpecies.keys.map((species) {
+                                      final serviceList = filteredServicesBySpecies[species]!;
+
+                                      return serviceList.isEmpty
+                                          ? const Center(child: Text("⚠️ Không có dịch vụ nào phù hợp"))
+                                          : ListView.builder(
+                                        itemCount: serviceList.length,
+                                        itemBuilder: (context, index) {
+                                          final service = serviceList[index];
+                                          final id = service['ServiceID'].toString();
+                                          final name = service['ServiceName'];
+                                          final isSelected = selectedServiceIDs.contains(id);
+
+                                          return CheckboxListTile(
+                                            title: Text(name),
+                                            value: isSelected,
+                                            onChanged: (selected) {
+                                              setState(() {
+                                                if (selected == true) {
+                                                  selectedServiceIDs.add(id);
+                                                } else {
+                                                  selectedServiceIDs.remove(id);
+                                                }
+                                              });
+                                            },
+                                            activeColor: Colors.deepPurple,
+                                            controlAffinity: ListTileControlAffinity.leading,
+                                          );
+                                        },
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                              ] else
+                                const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 20),
+                                    child: Text("⚠️ Không có loài thú cưng nào được hỗ trợ dịch vụ", style: TextStyle(color: Colors.red)),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Card(
+                      elevation: 2,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text("Chọn dịch vụ", style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 8,
-                              children: serviceList.map((s) {
-                                final id = s['ServiceID'].toString();
-                                final isSelected = selectedServiceIDs.contains(
-                                    id);
-                                return FilterChip(
-                                  label: Text(s['ServiceName']),
-                                  selected: isSelected,
-                                  onSelected: (selected) {
-                                    setState(() {
-                                      if (selected) {
-                                        selectedServiceIDs.add(id);
-                                      } else {
-                                        selectedServiceIDs.remove(id);
-                                      }
-                                    });
-                                  },
-                                  selectedColor: Colors.deepPurple.shade200,
-                                  checkmarkColor: Colors.white,
-                                );
-                              }).toList(),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          children: [
                             _buildDropdown(
                               'Nhân viên (tuỳ chọn)',
                               selectedStaffID,
-                              staffList.map((s) =>
-                                  DropdownMenuItem<String>(
-                                    value: s['UserID']?.toString(),
-                                    child: Text(s['FullName']),
-                                  )).toList(),
-                                  (value) =>
-                                  setState(() => selectedStaffID = value),
+                              staffList
+                                  .map((s) => DropdownMenuItem<String>(
+                                value: s['UserID']?.toString(),
+                                child: Text(s['FullName']),
+                              ))
+                                  .toList(),
+                                  (value) async {
+                                setState(() {
+                                  selectedStaffID = value;
+                                  allBookedSlots = []; // Reset lịch đã đặt
+                                });
+                                if (value != null) {
+                                  await fetchAllBookedSlots(value); // 🟢 Gọi API lấy lịch đã đặt
+                                }
+                              },
+                              decoration: InputDecoration(
+                                labelText: 'Nhân viên (tuỳ chọn)',
+                                hintText: 'Chọn nhân viên...',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+                                filled: true,
+                                fillColor: Colors.white,
+                              ),
                             ),
                             const SizedBox(height: 10),
+
+                            /// ✅ Hiển thị lịch đã đặt cho nhân viên
+                            if (allBookedSlots.isNotEmpty)
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    '🕒 Nhân viên đã có lịch:',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: allBookedSlots
+                                        .map((slot) => Chip(
+                                      label: Text(
+                                        "${slot['date']} - ${slot['time']}",
+                                        style: const TextStyle(color: Colors.white),
+                                      ),
+                                      backgroundColor: Colors.redAccent,
+                                    ))
+                                        .toList(),
+                                  ),
+                                  const SizedBox(height: 10),
+                                ],
+                              ),
+
                             TextFormField(
                               readOnly: true,
                               controller: TextEditingController(
                                 text: selectedDate != null
-                                    ? selectedDate!.toIso8601String().split(
-                                    'T')[0]
+                                    ? selectedDate!.toIso8601String().split('T')[0]
                                     : '',
                               ),
                               onTap: () async {
@@ -405,31 +628,43 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
                                   context: context,
                                   initialDate: DateTime.now(),
                                   firstDate: DateTime.now(),
-                                  lastDate: DateTime.now().add(
-                                      const Duration(days: 30)),
+                                  lastDate: DateTime.now().add(const Duration(days: 30)),
                                 );
                                 if (picked != null) {
                                   setState(() => selectedDate = picked);
                                   await fetchAvailableTimes(picked);
+                                  if (selectedStaffID != null) {
+                                    await fetchAllBookedSlots(selectedStaffID!);
+                                  }
                                 }
                               },
                               decoration: InputDecoration(
                                 labelText: 'Ngày hẹn',
                                 border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(15)),
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
                                 filled: true,
                                 fillColor: Colors.white,
                               ),
                             ),
                             const SizedBox(height: 10),
+
                             _buildDropdown(
                               'Giờ hẹn',
                               selectedTime,
-                              availableTimes.map((t) =>
-                                  DropdownMenuItem(value: t, child: Text(t)))
+                              availableTimes
+                                  .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                                   .toList(),
-                                  (value) =>
-                                  setState(() => selectedTime = value),
+                                  (value) => setState(() => selectedTime = value),
+                              decoration: InputDecoration(
+                                labelText: 'Giờ hẹn',
+                                hintText: 'Chọn giờ...',
+                                border: OutlineInputBorder( // ✅ viết đúng: Outline chứ không phải OutLine
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                filled: true,
+                                fillColor: Colors.white,
+                              ),
                             ),
                           ],
                         ),

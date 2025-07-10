@@ -43,7 +43,7 @@ class _ManageScreen extends State<ManageScreen> {
     final token = await _getToken();
     Uri uri;
 
-    if (role == 'staff') {
+    if (role == 'staff' || role == 'doctor') {
       uri = Uri.parse(
           'http://192.168.0.108:8000/api/pets/all?role=staff${query.isNotEmpty ? '&search=$query' : ''}');
     } else {
@@ -79,11 +79,21 @@ class _ManageScreen extends State<ManageScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xác nhận'),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: Colors.deepOrange),
+            SizedBox(width: 8),
+            Text('Xác nhận xoá'),
+          ],
+        ),
         content: const Text('Bạn có chắc muốn xoá thú cưng này không?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Xoá')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xoá', style: TextStyle(color: Colors.white)),
+          ),
         ],
       ),
     );
@@ -102,20 +112,63 @@ class _ManageScreen extends State<ManageScreen> {
       body: jsonEncode({'user_id': userId}),
     );
 
+    final decoded = jsonDecode(response.body);
+    final errorMsg = decoded['message'] ?? 'Xảy ra lỗi không xác định';
+
     if (response.statusCode == 200) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Đã xoá thú cưng")),
+        const SnackBar(content: Text("🎉 Đã xoá thú cưng thành công")),
       );
       await fetchPets();
     } else {
-      final errorMsg = jsonDecode(response.body)['message'] ?? 'Xảy ra lỗi không xác định';
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text("Lỗi"),
-          content: Text("Xoá thất bại: $errorMsg"),
-        ),
-      );
+      if (errorMsg.toLowerCase().contains('đã bị xoá') ||
+          errorMsg.toLowerCase().contains('không thể xoá')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMsg)),
+        );
+      } else {
+        // Hiển thị dialog nhẹ nhàng
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.redAccent, size: 40),
+                const SizedBox(height: 12),
+                Text(
+                  errorMsg,
+                  style: const TextStyle(fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.deepPurple, // màu chữ cho nút Hủy
+                ),
+                child: const Text('Hủy'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,    // màu nền nút Xoá
+                  foregroundColor: Colors.black,         // màu chữ trắng
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('Xoá'),
+              ),
+            ],
+          ),
+        );
+      }
     }
   }
 
@@ -176,7 +229,7 @@ class _ManageScreen extends State<ManageScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         itemBuilder: (context, index) {
           final pet = pets[index];
-          final ownerName = (role == 'staff' && pet['user'] != null)
+          final ownerName = ((role == 'staff' || role == 'doctor') && pet['user'] != null)
               ? pet['user']['FullName'] ?? 'Không rõ'
               : null;
 
@@ -211,7 +264,7 @@ class _ManageScreen extends State<ManageScreen> {
                         style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 ],
               ),
-              trailing: role != 'staff'
+              trailing: (role != 'staff' && role != 'doctor')
                   ? IconButton(
                 icon: const Icon(Icons.delete_outline, color: Colors.red),
                 onPressed: () => deletePet(pet['PetID']),
@@ -221,7 +274,7 @@ class _ManageScreen extends State<ManageScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => PetDetailScreen(pet: pet),
+                    builder: (context) => PetDetailScreen(petId: pet['PetID']),
                   ),
                 );
               },
@@ -229,9 +282,9 @@ class _ManageScreen extends State<ManageScreen> {
           );
         },
       ),
-      floatingActionButton: role == 'staff'
+      floatingActionButton:(role == 'staff' || role == 'doctor')
           ? null
-          : FloatingActionButton(
+          : FloatingActionButton.extended(
         onPressed: () async {
           final result = await Navigator.push(
             context,
@@ -243,8 +296,12 @@ class _ManageScreen extends State<ManageScreen> {
             await fetchPets();
           }
         },
-        backgroundColor: const Color(0xFFD1C4E9),
-        child: const Icon(Icons.add, color: Colors.black, size: 30),
+        backgroundColor: Colors.deepPurpleAccent,
+        icon: const Icon(Icons.add, color: Colors.white, size: 30),
+        label: const Text(
+          'Thêm thú cưng',
+          style: TextStyle(color: Colors.white),
+        ),
       ),
     );
   }

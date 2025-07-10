@@ -176,8 +176,13 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
         ),
       ),
       floatingActionButton: isStaff
-          ? FloatingActionButton(
+          ? FloatingActionButton.extended(
         backgroundColor: Colors.deepPurpleAccent,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text(
+          'Thêm dịch vụ',
+          style: TextStyle(color: Colors.white),
+        ),
         onPressed: () async {
           final result = await Navigator.push(
             context,
@@ -189,7 +194,6 @@ class _ServicePackageScreenState extends State<ServicePackageScreen> {
             });
           }
         },
-        child: const Icon(Icons.add, color: Colors.white),
       )
           : null,
     );

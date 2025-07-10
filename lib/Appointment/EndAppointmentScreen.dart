@@ -85,7 +85,7 @@ class _EndAppointmentScreenState extends State<EndAppointmentScreen> {
     }
 
     final endRes = await http.put(
-      Uri.parse('http://192.168.0.108:8000/api/appointments/end/${widget.appointmentId}'),
+      Uri.parse('http://10.24.67.249:8000/api/appointments/end/${widget.appointmentId}'),
       headers: {'Authorization': 'Bearer $token'},
     );
 

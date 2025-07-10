@@ -62,7 +62,6 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     }
   }
 
-
   String getDisplayStatus(String status) {
     switch (status.toLowerCase()) {
       case 'pending':
@@ -87,7 +86,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final medicines = (invoice?['medicines'] ?? []) as List;
+    final medicines = (invoice?['medications'] ?? []) as List;
     final status = invoice?['status']?.toString().toLowerCase() ?? '';
 
     final isButtonDisabled = isPaid || status == 'chờ duyệt' || status == 'đã duyệt';

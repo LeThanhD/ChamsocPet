@@ -48,6 +48,16 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
     }
   }
 
+  Future<bool> checkEmailVerified(String email) async {
+    final response = await http.post(
+      Uri.parse('http://192.168.0.108:8000/api/check-email-verification'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
+    final data = jsonDecode(response.body);
+    return data['verified'] == true;
+  }
+
   Future<void> submitToAPI(Map<String, dynamic> data) async {
     final url = Uri.parse('http://192.168.0.108:8000/api/users');
 
@@ -63,19 +73,29 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
         throw FormatException("API không trả về JSON hợp lệ:\n${response.body}");
       }
 
-      final responseData = jsonDecode(response.body);
+      late Map<String, dynamic> responseData;
+      try {
+        responseData = jsonDecode(response.body);
+      } catch (e) {
+        print('⚠️ JSON Decode failed: $e');
+        print('⚠️ Response body: ${response.body}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Hệ thống lỗi, vui lòng thử lại sau.')),
+        );
+        return;
+      }
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(responseData['message'] ?? 'Đăng ký thành công!')),
         );
-        await Future.delayed(const Duration(seconds: 2));
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const LoginScreen()),
-          );
-        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vui lòng kiểm tra email để xác minh tài khoản!'),
+            duration: Duration(seconds: 5),
+          ),
+        );
       } else {
         String message = responseData['message'] ?? 'Lỗi không xác định';
         if (responseData['errors'] != null) {
@@ -251,6 +271,49 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: Colors.lightBlue.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.verified, color: Colors.black87),
+                      label: const Text(
+                        "Tôi đã xác minh email",
+                        style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                      ),
+                      onPressed: () async {
+                        final email = _emailController.text.trim();
+                        if (email.isEmpty || !_emailRegExp.hasMatch(email)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Vui lòng nhập đúng email để kiểm tra")),
+                          );
+                          return;
+                        }
+
+                        final verified = await checkEmailVerified(email);
+                        if (verified) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("✅ Email đã xác minh! Đang chuyển...")),
+                          );
+                          await Future.delayed(const Duration(seconds: 1));
+                          if (mounted) {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(builder: (_) => const LoginScreen()),
+                            );
+                          }
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("❌ Email chưa được xác minh.")),
+                          );
+                        }
+                      },
                     ),
                   ),
                   const SizedBox(height: 32),

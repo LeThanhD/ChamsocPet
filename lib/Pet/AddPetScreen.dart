@@ -17,6 +17,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
   final originController = TextEditingController();
   final lastVaccineDateController = TextEditingController();
   final breedController = TextEditingController();
+  final newVaccineController = TextEditingController();
 
   String? selectedGender;
   String? selectedSpecies;
@@ -25,6 +26,9 @@ class _AddPetScreenState extends State<AddPetScreen> {
   bool trained = false;
   String? userId;
   bool isLoading = false;
+
+  List<Map<String, dynamic>> availableVaccines = [];
+  List<Map<String, dynamic>> selectedVaccines = [];
 
   final Map<String, List<String>> breedOptions = {
     'Chó': ['Poodle', 'Phốc sóc (Pom)', 'Chihuahua', 'Shih Tzu', 'Pug', 'Corgi', 'Golden Retriever', 'Labrador Retriever', 'Chó ta'],
@@ -35,11 +39,22 @@ class _AddPetScreenState extends State<AddPetScreen> {
   void initState() {
     super.initState();
     _loadUserId();
+    _fetchVaccines();
   }
 
   Future<void> _loadUserId() async {
     final prefs = await SharedPreferences.getInstance();
     userId = prefs.getString('user_id');
+  }
+
+  Future<void> _fetchVaccines() async {
+    final response = await http.get(Uri.parse('http://192.168.0.108:8000/api/pets/vaccines/all'));
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      setState(() {
+        availableVaccines = List<Map<String, dynamic>>.from(data['data']);
+      });
+    }
   }
 
   Future<void> _submitPet() async {
@@ -97,9 +112,10 @@ class _AddPetScreenState extends State<AddPetScreen> {
         'vaccinated': vaccinated ? 1 : 0,
         'trained': trained ? 1 : 0,
         'last_vaccine_date': vaccinated && lastVaccineDateController.text.isNotEmpty
-            ? lastVaccineDateController.text
+            ? DateTime.tryParse(lastVaccineDateController.text)?.toIso8601String().split('T').first
             : null,
         'HealthStatus': healthController.text,
+        'vaccines': vaccinated ? selectedVaccines : [],
       }),
     );
 
@@ -128,6 +144,13 @@ class _AddPetScreenState extends State<AddPetScreen> {
     if (picked != null) {
       controller.text = picked.toIso8601String().split('T').first;
     }
+  }
+
+  void _onSpeciesChanged(String? value) {
+    setState(() {
+      selectedSpecies = value;
+      breedController.clear(); // ✅ reset giống khi đổi loài
+    });
   }
 
   @override
@@ -181,14 +204,44 @@ class _AddPetScreenState extends State<AddPetScreen> {
                   label: 'Loài',
                   items: breedOptions.keys.toList(),
                   selectedValue: selectedSpecies,
-                  onChanged: (value) {
-                    setState(() {
-                      selectedSpecies = value;
-                      breedController.clear();
-                    });
-                  },
+                  onChanged: _onSpeciesChanged, // ✅ Gọi hàm riêng đã định nghĩa
                 ),
-                _buildTextField('Giống (có thể nhập tay)', breedController),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("Giống (có thể chọn hoặc nhập tay):", style: TextStyle(fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 4),
+                      DropdownButtonFormField<String>(
+                        value: (breedOptions[selectedSpecies]?.contains(breedController.text) ?? false)
+                            ? breedController.text
+                            : null,
+                        items: (breedOptions[selectedSpecies] ?? []).map((breed) {
+                          return DropdownMenuItem<String>(
+                            value: breed,
+                            child: Text(breed),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() {
+                              breedController.text = value; // ✅ Giữ lại giá trị đã chọn
+                            });
+                          }
+                        },
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildTextField('Hoặc nhập giống khác (tuỳ chọn)', breedController),
+                    ],
+                  ),
+                ),
                 Row(
                   children: [
                     Expanded(
@@ -239,6 +292,46 @@ class _AddPetScreenState extends State<AddPetScreen> {
                     child: _buildTextField('Ngày tiêm gần nhất', lastVaccineDateController),
                   ),
                 ),
+                if (vaccinated) ...[
+                  const SizedBox(height: 20),
+                  const Text('Chọn vaccine đã tiêm:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 6,
+                    children: availableVaccines.map((vaccine) {
+                      bool isSelected = selectedVaccines.any((v) => v['id'] == vaccine['VaccineID']);
+                      return FilterChip(
+                        label: Text(vaccine['Name']),
+                        selected: isSelected,
+                        onSelected: (checked) {
+                          setState(() {
+                            if (checked) {
+                              selectedVaccines.add({
+                                'id': vaccine['VaccineID'],
+                                'name': vaccine['Name'],
+                                'date': DateTime.now().toIso8601String().split('T').first
+                              });
+                            } else {
+                              selectedVaccines.removeWhere((v) => v['id'] == vaccine['VaccineID']);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text("Hoặc thêm vaccine mới (nếu chưa có trong danh sách):"),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildTextField("Nhập tên vaccine mới", newVaccineController),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 24),
                 Center(
                   child: isLoading

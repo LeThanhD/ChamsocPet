@@ -85,7 +85,7 @@ class _LoginPageState extends State<LoginPage> {
           }
         }
 
-        Navigator.pushReplacement(
+        Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const PageScreen()),
         );

@@ -225,6 +225,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()));
                   },
                 ),
+                if (userRole != 'doctor')
                 _buildMenuTile(
                   icon: Icons.history,
                   title: 'Lịch sử lịch hẹn',
@@ -232,6 +233,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => AppointmentHistoryPage()));
                   },
                 ),
+                if (userRole != 'doctor')
                 _buildMenuTile(
                   icon: Icons.receipt_long,
                   title: 'Hóa đơn',
@@ -239,7 +241,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const InvoiceListScreen()));
                   },
                 ),
-                if (userRole == 'staff') ...[
+                if (userRole == 'staff' && userRole != 'doctor') ...[
                   _buildMenuTile(
                     icon: Icons.admin_panel_settings,
                     title: 'Duyệt thanh toán',
@@ -247,6 +249,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminApprovalScreen()));
                     },
                   ),
+
                   _buildMenuTile(
                     icon: Icons.group,
                     title: 'Quản lý người dùng',
@@ -254,7 +257,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const UserManagementScreen()));
                     },
                   ),
-                ] else if (userRole == 'owner')
+                ] else if (userRole == 'owner' && userRole != 'doctor')
                   _buildMenuTile(
                     icon: Icons.payment,
                     title: 'Thanh toán hóa đơn',

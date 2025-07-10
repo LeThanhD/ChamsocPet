@@ -26,6 +26,10 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
   String searchQuery = '';
   Timer? autoRefreshTimer;
   TabController? _tabController;
+  int unseenCount = 0;
+  Map<String, List<dynamic>> selectedMedicinesByAppointment = {};
+
+
   List<String> statusTabs = [
     'Chưa duyệt',
     'Đã duyệt',
@@ -43,7 +47,6 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
     'Đang khám',
     'Hoàn tất dịch vụ',
     'Chờ thêm thuốc',
-    'Kết thúc',
   ];
 
   @override
@@ -51,12 +54,11 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
     super.initState();
     loadUserAndFetchAppointments();
     _tabController = TabController(length: statusTabs.length, vsync: this);
-
-
     autoRefreshTimer = Timer.periodic(Duration(seconds: 10), (_) async {
       if (!isSearching && mounted) {
         print('🔁 Auto-refresh lịch hẹn...');
         await fetchAppointments();
+        await loadSelectedMedicinesFromServer();
       }
     });
   }
@@ -67,12 +69,51 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
     super.dispose();
   }
 
+  Future<void> markAsSeen(String appointmentId) async {
+    final url = Uri.parse('http://192.168.0.108:8000/api/appointments/mark-seen/$appointmentId');
+    try {
+      final response = await http.post(url);
+      if (response.statusCode == 200) {
+        print('Đã đánh dấu đã xem: $appointmentId');
+      }
+    } catch (e) {
+      print('Lỗi đánh dấu đã xem: $e');
+    }
+  }
+
+  Future<void> loadSelectedMedicinesFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    Map<String, List<dynamic>> temp = {};
+
+    for (var appt in appointments) {
+      String key = 'selected_meds_${appt['AppointmentID']}';
+      final medsStr = prefs.getString(key);
+      if (medsStr != null) {
+        final meds = jsonDecode(medsStr);
+        temp[appt['AppointmentID']] = meds;
+      }
+    }
+
+    setState(() {
+      selectedMedicinesByAppointment = temp;
+    });
+  }
+
   Future<void> loadUserAndFetchAppointments() async {
     final prefs = await SharedPreferences.getInstance();
     userId = prefs.getString('user_id');
     role = prefs.getString('role');
     await fetchAppointments();
+    if (role == 'staff') {
+      for (var appointment in appointments) {
+        if (appointment['is_seen'] == 0) {
+          await markAsSeen(appointment['AppointmentID']);
+        }
+      }
+    }
   }
+
+
 
   Future<List<dynamic>> fetchMedications() async {
     final response = await http.get(
@@ -136,20 +177,17 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
     }
   }
 
-
-  // Lấy danh sách các cuộc hẹn
   Future<void> fetchAppointments({String query = ''}) async {
     setState(() => isLoading = true);
     String url;
 
-    if (role == 'staff') {
+    if (role == 'staff' || role == 'doctor') {
       url = 'http://192.168.0.108:8000/api/appointments/every?role=staff';
       if (query.isNotEmpty) url += '&search=$query';
     } else {
       url = 'http://192.168.0.108:8000/api/appointments/all?UserID=$userId';
       if (query.isNotEmpty) url += '&search=$query';
     }
-
     try {
       final response = await http.get(Uri.parse(url), headers: {'Accept': 'application/json'});
       if (response.statusCode == 200) {
@@ -161,7 +199,8 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
               .where((a) => a['Status'] != 'Kết thúc')
               .toList();
 
-          // Sắp xếp theo statusOrder
+          unseenCount = loadedAppointments.where((a) => a['is_seen'] == 0).length;
+
           loadedAppointments.sort((a, b) {
             final indexA = statusOrder.indexOf(a['Status'] ?? '');
             final indexB = statusOrder.indexOf(b['Status'] ?? '');
@@ -171,7 +210,12 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
           setState(() {
             appointments = loadedAppointments;
           });
+
+          // Sau khi cập nhật appointments, load thuốc đã chọn
+          await loadSelectedMedicinesFromPrefs();
         }
+      } else {
+        print('❌ Lỗi fetch lịch hẹn: statusCode=${response.statusCode}, body=${response.body}');
       }
     } catch (e) {
       print('❌ Exception: $e');
@@ -181,8 +225,6 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
       }
     }
   }
-
-
   // Hàm xây dựng widget hiển thị tag trạng thái màu sắc rõ ràng
   Widget buildStatusTag(String status) {
     Color backgroundColor;
@@ -240,7 +282,33 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
     );
   }
 
-  // Xử lý các hành động trạng thái của cuộc hẹn
+  Future<void> loadSelectedMedicinesFromServer() async {
+    Map<String, List<dynamic>> temp = {};
+
+    for (var appt in appointments) {
+      String appointmentId = appt['AppointmentID'];
+      final meds = await fetchMedicationsByAppointment(appointmentId);
+      temp[appointmentId] = meds;
+    }
+
+    setState(() {
+      selectedMedicinesByAppointment = temp;
+    });
+  }
+
+
+  Future<List<dynamic>> fetchMedicationsByAppointment(String appointmentId) async {
+    final response = await http.get(
+      Uri.parse('http://192.168.0.108:8000/api/appointments/$appointmentId/medications'),
+      headers: {'Accept': 'application/json'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body)['data'];
+    }
+    return [];
+  }
+
+
   Widget statusActions(String current, String id, List<dynamic> services) {
     final Map<String, List<String>> next = {
       'Chưa duyệt': ['Đã duyệt'],
@@ -248,26 +316,33 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
       'Chờ khám': ['Đang khám'],
       'Đang khám': ['Chọn thêm dịch vụ', 'Hoàn tất dịch vụ'],
       'Hoàn tất dịch vụ': ['Chờ thêm thuốc'],
-      'Chờ thêm thuốc': ['Chọn thuốc', 'Kết thúc'],
+      'Chờ thêm thuốc': ['Kết thúc'],
     };
 
-    return Row(
-      children: next[current]?.map((s) {
-        if (s == 'Chọn thuốc') {
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ElevatedButton(
+    if (role == 'doctor') {
+      if (current == 'Chờ thêm thuốc') {
+        return Row(
+          children: [
+            ElevatedButton(
               onPressed: () async {
                 final meds = await fetchMedications();
                 final selectedMeds = await showDialog<List>(
                   context: context,
                   barrierDismissible: false,
-                  builder: (_) => SelectMedicineDialog(meds),
+                  builder: (_) => SelectMedicineDialog(meds, id),
                 );
 
                 if (selectedMeds != null && selectedMeds.isNotEmpty) {
                   final prefs = await SharedPreferences.getInstance();
-                  await prefs.setString('selected_meds_$id', jsonEncode(selectedMeds));
+                  await prefs.setString(
+                    'selected_meds_$id',
+                    jsonEncode(selectedMeds.toList()),
+                  );
+
+                  // Cập nhật UI
+                  setState(() {
+                    selectedMedicinesByAppointment[id] = selectedMeds;
+                  });
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -277,8 +352,28 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
               ),
               child: const Text('Chọn thuốc', style: TextStyle(color: Colors.white)),
             ),
-          );
-        } else if (s == 'Chọn thêm dịch vụ') {
+
+            // Hiển thị số thuốc đã chọn ngay cạnh nút
+            if (selectedMedicinesByAppointment[id] != null && selectedMedicinesByAppointment[id]!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Text(
+                  '${selectedMedicinesByAppointment[id]!.length} thuốc đã chọn',
+                  style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                ),
+              ),
+          ],
+        );
+      } else {
+        return const SizedBox();
+      }
+    }
+
+
+    // 👷 Nhân viên thì được thao tác đủ
+    return Row(
+      children: next[current]?.map((s) {
+        if (s == 'Chọn thêm dịch vụ') {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ElevatedButton(
@@ -292,7 +387,7 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
                     ),
                   ),
                 );
-                await fetchAppointments(); // Cập nhật lại lịch sau khi chọn dịch vụ
+                await fetchAppointments();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.deepPurple,
@@ -302,7 +397,9 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
               child: const Text('Chọn thêm dịch vụ', style: TextStyle(color: Colors.white)),
             ),
           );
-        } else if (s == 'Kết thúc') {
+        }
+
+        else if (s == 'Kết thúc') {
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ElevatedButton(
@@ -319,7 +416,8 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
                   List<Map<String, dynamic>> medIds = selectedMeds.map((med) {
                     return {'id': med['MedicationID'], 'quantity': 1};
                   }).toList();
-
+                  print('📦 Dữ liệu gửi tạo hóa đơn: $medIds');
+                  print('📦 Dữ liệu gửi tạo hóa đơn: appointment_id=$id, medicine_ids=$medIds');
                   final invoiceRes = await http.post(
                     Uri.parse('http://192.168.0.108:8000/api/invoices'),
                     headers: {
@@ -333,19 +431,46 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
                     print('❌ Lỗi tạo hóa đơn: ${invoiceRes.body}');
                     return;
                   }
+                } else {
+                  // Nếu không chọn thuốc cũng tạo hóa đơn không thuốc
+                  final invoiceRes = await http.post(
+                    Uri.parse('http://192.168.0.108:8000/api/invoices'),
+                    headers: {
+                      'Accept': 'application/json',
+                      'Content-Type': 'application/json',
+                    },
+                    body: jsonEncode({'appointment_id': id, 'medicine_ids': []}),
+                  );
+
+                  if (!(invoiceRes.statusCode == 200 || invoiceRes.statusCode == 201)) {
+                    print('❌ Lỗi tạo hóa đơn (không thuốc): ${invoiceRes.body}');
+                    return;
+                  }
                 }
 
+                // Sau khi tạo hóa đơn thành công, cập nhật trạng thái sang "Kết thúc"
                 final updateRes = await http.put(
                   Uri.parse('http://192.168.0.108:8000/api/appointments/update-status/$id'),
-                  headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
+                  headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                  },
                   body: jsonEncode({'Status': 'Kết thúc'}),
                 );
 
                 if (updateRes.statusCode == 200) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('✅ Đã kết thúc và tạo hóa đơn')),
+                    const SnackBar(content: Text('✅ Đã tạo hóa đơn và kết thúc lịch hẹn')),
                   );
+
+                  // Load lại danh sách để loại bỏ lịch có trạng thái "Kết thúc"
                   await fetchAppointments();
+
+                  // Chuyển sang trang lịch sử hẹn
+                  await Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AppointmentHistoryPage()),
+                  );
                 } else {
                   print('❌ Lỗi cập nhật trạng thái: ${updateRes.body}');
                 }
@@ -358,24 +483,24 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
               child: const Text('Kết thúc', style: TextStyle(color: Colors.white)),
             ),
           );
-        } else {
-          // Các trạng thái khác (bao gồm 'Đã duyệt', 'Chờ khám', 'Đang khám', 'Hoàn tất dịch vụ', 'Chờ thêm thuốc')
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ElevatedButton(
-              onPressed: () async {
-                await updateStatus(id, s);
-                await fetchAppointments();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-              child: Text(s, style: const TextStyle(color: Colors.white)),
-            ),
-          );
         }
+
+        // ✅ Các nút duyệt trạng thái khác
+        return Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: ElevatedButton(
+            onPressed: () async {
+              await updateStatus(id, s);
+              await fetchAppointments();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+            child: Text(s, style: const TextStyle(color: Colors.white)),
+          ),
+        );
       }).toList() ?? [],
     );
   }
@@ -383,15 +508,21 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
   // Cập nhật trạng thái cuộc hẹn
   Future<void> updateStatus(String appointmentId, String status) async {
     try {
+      print('⚙️ Bắt đầu updateStatus với appointmentId=$appointmentId, status=$status');
       if (status == 'Kết thúc') {
+        print('⚙️ Trạng thái là Kết thúc, lấy danh sách thuốc');
         final meds = await fetchMedications();
+        print('⚙️ Đã lấy được ${meds.length} thuốc');
+
         final selectedMeds = await showDialog<List>(
           context: context,
           barrierDismissible: false,
-          builder: (_) => SelectMedicineDialog(meds),
+          builder: (_) => SelectMedicineDialog(meds, appointmentId),
         );
+        print('⚙️ Kết quả chọn thuốc: $selectedMeds');
 
         if (selectedMeds == null) {
+          print('⚠️ Người dùng đã hủy chọn thuốc');
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('❗Bạn đã hủy chọn thuốc')),
           );
@@ -402,12 +533,19 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
         for (var med in selectedMeds) {
           medIds.add({'id': med['MedicationID'], 'quantity': 1});
         }
+        print('📦 Dữ liệu gửi tạo hóa đơn: $medIds');
 
         final invoiceRes = await http.post(
           Uri.parse('http://192.168.0.108:8000/api/invoices'),
-          headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
-          body: jsonEncode({'appointment_id': appointmentId, 'medicine_ids': medIds}),
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: jsonEncode(
+              {'appointment_id': appointmentId, 'medicine_ids': medIds}),
         );
+        print('📦 Response tạo hóa đơn statusCode=${invoiceRes
+            .statusCode} body=${invoiceRes.body}');
 
         if (!(invoiceRes.statusCode == 200 || invoiceRes.statusCode == 201)) {
           print('❌ Lỗi tạo hóa đơn: ${invoiceRes.body}');
@@ -415,25 +553,34 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
         }
 
         final updateRes = await http.put(
-          Uri.parse('http://192.168.0.108:8000/api/appointments/update-status/$appointmentId'),
-          headers: {'Accept': 'application/json', 'Content-Type': 'application/json'},
+          Uri.parse(
+              'http://192.168.0.108:8000/api/appointments/update-status/$appointmentId'),
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
           body: jsonEncode({'Status': 'Kết thúc'}),
         );
+        print('📦 Response cập nhật trạng thái statusCode=${updateRes
+            .statusCode} body=${updateRes.body}');
 
         if (updateRes.statusCode == 200) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('✅ Đã kết thúc và tạo hóa đơn')),
+            const SnackBar(content: Text('✅ Đã tạo hóa đơn và kết thúc lịch hẹn')),
           );
+          await fetchAppointments();
           await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AppointmentHistoryPage()),
           );
-        } else {
+        }
+        else {
           print('❌ Lỗi cập nhật trạng thái: ${updateRes.body}');
         }
         return;
       }
 
+        print('⚙️ Cập nhật trạng thái khác: $status');
       final res = await http.put(
         Uri.parse('http://192.168.0.108:8000/api/appointments/update-status/$appointmentId'),
         headers: {
@@ -442,6 +589,7 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
         },
         body: jsonEncode({'Status': status}),
       );
+      print('📦 Response cập nhật trạng thái statusCode=${res.statusCode} body=${res.body}');
 
       if (res.statusCode == 200) {
         setState(() {
@@ -459,6 +607,7 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
       print('❌ Exception khi duyệt: $e');
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -548,13 +697,28 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
                     final name = a['pet']?['Name']?.toLowerCase() ?? '';
                     final isMatch = name.contains(searchQuery);
                     if (searchQuery.isNotEmpty) {
-                      return isMatch; // Nếu đang tìm kiếm thì chỉ lọc theo tên, KHÔNG lọc theo tab
+                      return isMatch;
                     }
-                    return a['Status'] == status; // Nếu không tìm kiếm thì lọc theo trạng thái như thường
+                    return a['Status'] == status;
                   }).toList();
+
+                  // ✅ Đánh dấu đã xem nếu là nhân viên
+                  if (role == 'staff') {
+                    for (var appt in filtered) {
+                      if (appt['is_seen'] == 0) {
+                        final id = appt['AppointmentID'];
+                        markAsSeen(id); // Gọi API đánh dấu đã xem
+                        appt['is_seen'] = 1; // Cập nhật local
+                      }
+                    }
+                    // ✅ Cập nhật số lượng chưa xem
+                    unseenCount = appointments.where((a) => a['is_seen'] == 0).length;
+                  }
+
                   if (filtered.isEmpty) {
                     return const Center(child: Text('Không có lịch hẹn.'));
                   }
+
                   return ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     itemCount: filtered.length,
@@ -629,6 +793,16 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
                               Text('🛠️ Dịch vụ: $serviceNames'),
                               if (appt['Reason'] != null && appt['Reason'].toString().isNotEmpty)
                                 Text('📜 Ghi chú: ${appt['Reason']}'),
+                              // Ví dụ ở trong widget con hiển thị chi tiết lịch hẹn (nơi bạn render từng item)
+                              Text(
+                                selectedMedicinesByAppointment[appt['AppointmentID']] != null
+                                    ? '${selectedMedicinesByAppointment[appt['AppointmentID']]!.length} thuốc đã chọn'
+                                    : 'Chưa chọn thuốc',
+                                style: TextStyle(
+                                  color: Colors.blueAccent,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                               const SizedBox(height: 10),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -648,7 +822,7 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
                                     ),
                                 ],
                               ),
-                              if (role == 'staff')
+                              if (role == 'staff' || role == 'doctor')
                                 Padding(
                                   padding: const EdgeInsets.only(top: 8),
                                   child: statusActions(status, appt['AppointmentID'], appt['services'] ?? []),
@@ -664,21 +838,24 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
             ),
           ],
         ),
-        floatingActionButton: role != 'staff'
-            ? FloatingActionButton(
+        floatingActionButton: (role == 'staff' || role == 'doctor')
+            ?null
+            : FloatingActionButton.extended(
           onPressed: () async {
             final result = await Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => AppointmentScreen()),
             );
             if (result == true) {
-              await fetchAppointments();
+              await loadUserAndFetchAppointments();
             }
           },
-          backgroundColor: Colors.deepPurple,
-          child: const Icon(Icons.add),
+          backgroundColor: Colors.deepPurpleAccent,
+          foregroundColor: Colors.white,
+          icon: const Icon(Icons.add),
+          label: const Text('Tạo lịch hẹn', ),
         )
-            : const SizedBox.shrink(),
+            // : const SizedBox.shrink(),
       ),
     );
   }
@@ -686,19 +863,41 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
 
 class SelectMedicineDialog extends StatefulWidget {
   final List<dynamic> medicines;
-  const SelectMedicineDialog(this.medicines);
+  final String appointmentId;
+
+  const SelectMedicineDialog(this.medicines, this.appointmentId);
 
   @override
   State<SelectMedicineDialog> createState() => _SelectMedicineDialogState();
 }
 
 class _SelectMedicineDialogState extends State<SelectMedicineDialog> {
-  final Set<dynamic> selected = {}; // Lưu thuốc đã chọn
+  final Set<dynamic> selected = {};
 
-  // Hàm để lấy và lưu thuốc đã chọn
   Future<void> saveSelectedMedicines() async {
-    final prefs = await SharedPreferences.getInstance(); // Đây là nơi dùng await
-    await prefs.setString('selected_meds', jsonEncode(selected.toList()));
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(
+      'selected_meds_${widget.appointmentId}',
+      jsonEncode(selected.toList()),
+    );
+  }
+  Future<bool> updateMedicationsForAppointment(String appointmentId, List<Map<String, dynamic>> meds) async {
+    final url = Uri.parse('http://192.168.0.108:8000/api/appointments/$appointmentId/medications/update');
+    final body = jsonEncode({'medications': meds});
+
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      body: body,
+    );
+
+    if (response.statusCode == 200) {
+      return true;
+    } else {
+      print('Lỗi cập nhật thuốc: ${response.body}');
+      return false;
+    }
   }
 
   @override
@@ -732,14 +931,31 @@ class _SelectMedicineDialogState extends State<SelectMedicineDialog> {
       ),
       actions: [
         TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Hủy")
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Hủy"),
         ),
         ElevatedButton(
           onPressed: () async {
-            // Lưu thuốc đã chọn vào SharedPreferences
-            await saveSelectedMedicines();  // Gọi hàm async để lưu thuốc đã chọn
-            Navigator.pop(context, selected.toList()); // Trả về danh sách thuốc đã chọn
+            await saveSelectedMedicines(); // lưu tạm nếu cần
+
+            final List<dynamic> selectedMeds = selected.toList();
+
+            List<Map<String, dynamic>> medIds = selectedMeds.map((med) {
+              return {
+                'MedicationID': med['MedicationID'],
+                'Quantity': 1
+              };
+            }).toList();
+
+            final success = await updateMedicationsForAppointment(widget.appointmentId, medIds);
+
+            if (!success) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Lỗi lưu thuốc lên server')),
+              );
+            }
+
+            Navigator.pop(context, selected.toList());
           },
           child: const Text("Xác nhận"),
         ),

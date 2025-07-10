@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\PetNotes;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str; // ✅ Import thư viện Str
 
 class PetNotesController extends Controller
 {
+    
     public function getList()
     {
         $notes = PetNotes::with(['pet', 'user', 'service'])->get();
@@ -23,17 +25,8 @@ class PetNotesController extends Controller
         return response()->json($note);
     }
 
-        private function generateUniqueNoteID()
-    {
-        do {
-            $randomString = strtoupper(Str::random(6)); // Tạo chuỗi ngẫu nhiên 6 ký tự
-            $noteId = 'PNOTE' . $randomString;
-        } while (PetNotes::where('NoteID', $noteId)->exists());
-
-        return $noteId;
-    }
-
-        public function store(Request $request)
+    // ✅ Hàm tạo NoteID không bị trùn
+    public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'PetID'     => 'required|exists:Pets,PetID',
@@ -48,12 +41,12 @@ class PetNotesController extends Controller
         }
 
         $note = PetNotes::create([
-            'NoteID'     => $this->generateUniqueNoteID(),
+            'NoteID'     => PetNotes::generateUniqueNoteID(),
             'PetID'      => $request->PetID,
             'Content'    => $request->Content,
             'ServiceID'  => $request->ServiceID ?? null,
             'CreatedAt'  => $request->CreatedAt ?? now(),
-            'CreatedBy'  => $request->CreatedBy ?? auth()->id()
+            'CreatedBy'  => $request->CreatedBy ?? auth()->id() ?? null
         ]);
 
         return response()->json([
@@ -62,6 +55,8 @@ class PetNotesController extends Controller
         ], 201);
     }
 
+
+    
     public function updateService(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -86,17 +81,17 @@ class PetNotesController extends Controller
 
         return response()->json(['message' => 'Service updated for pet note', 'data' => $note]);
     }
+
     public function destroy($id)
-{
-    $note = PetNotes::find($id);
+    {
+        $note = PetNotes::find($id);
 
-    if (!$note) {
-        return response()->json(['message' => 'Note not found'], 404);
+        if (!$note) {
+            return response()->json(['message' => 'Note not found'], 404);
+        }
+
+        $note->delete();
+
+        return response()->json(['message' => 'Note deleted successfully'], 200);
     }
-
-    $note->delete();
-
-    return response()->json(['message' => 'Note deleted successfully'], 200);
-}
-
 }

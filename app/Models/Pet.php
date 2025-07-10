@@ -30,7 +30,8 @@ class Pet extends Model
         'origin',
         'vaccinated',
         'last_vaccine_date',
-        'trained'
+        'trained',
+        'status'
     ];
 
     protected static function boot()
@@ -41,6 +42,14 @@ class Pet extends Model
             $pet->notes()->delete();
         });
     }
+
+   public function vaccines()
+    {
+        return $this->belongsToMany(Vaccine::class, 'pet_vaccine', 'PetID', 'VaccineID')
+            ->withPivot('VaccinatedAt'); // ❌ KHÔNG dùng ->withTimestamps()
+    }
+
+
 
     public function notes()
     {

@@ -42,7 +42,7 @@ class ServiceController extends Controller
         try {
             // Tìm kiếm và phân trang dịch vụ
             $services = Service::where('ServiceName', 'like', '%' . $data['search'] . '%')
-                ->paginate(10);
+                ->paginate(30);
 
             return response()->json([
                 'success' => true,
@@ -89,7 +89,7 @@ class ServiceController extends Controller
             ]);
 
             // ✅ Xác định prefix dựa vào loại dịch vụ
-            $prefix = strtoupper($request->CategoryID) === 'DOG' ? 'SV_C' : 'SV_M';
+            $prefix = strtoupper($request->CategoryID) === 'Chó' ? 'SV_C' : 'SV_M';
 
             // ✅ Lấy ServiceID gần nhất theo Category
             $lastService = Service::where('ServiceID', 'like', $prefix . '%')

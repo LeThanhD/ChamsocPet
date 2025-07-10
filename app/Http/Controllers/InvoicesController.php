@@ -17,20 +17,23 @@ class InvoicesController extends Controller
     // Tạo hóa đơn
     public function store(Request $request)
 {
+    \Log::info('Dữ liệu tạo hóa đơn:', $request->all());
+
     $validator = Validator::make($request->all(), [
         'appointment_id' => 'required|exists:appointments,AppointmentID',
-        'medicine_ids' => 'array',
-        'medicine_ids.*.id' => 'required|exists:medications,MedicationID',
-        'medicine_ids.*.quantity' => 'required|integer|min:1',
+        'medicine_ids' => 'nullable|array',
+        'medicine_ids.*.id' => 'required_with:medicine_ids|exists:medications,MedicationID',
+        'medicine_ids.*.quantity' => 'required_with:medicine_ids|integer|min:1',
     ]);
 
     if ($validator->fails()) {
         return response()->json(['errors' => $validator->errors()], 422);
     }
 
-    $appointment = Appointment::with(['services', 'service', 'user'])
-        ->where('AppointmentID', $request->appointment_id)
-        ->first();
+    $appointment = Appointment::with(['services', 'service', 'user', 'pet'])
+    ->where('AppointmentID', $request->appointment_id)
+    ->first();
+
 
     if (!$appointment) {
         return response()->json(['message' => 'Lịch hẹn không tồn tại'], 404);
@@ -85,6 +88,7 @@ class InvoicesController extends Controller
         'ServicePrice' => $servicePrice,
         'MedicineTotal' => $medicineTotal,
         'TotalAmount' => $total,
+        'Status' => 'Chưa thanh toán',
         'CreatedAt' => now(),
     ]);
 
@@ -164,7 +168,8 @@ class InvoicesController extends Controller
         $invoices = $query->get();
 
         foreach ($invoices as $invoice) {
-            $invoice->name = optional($invoice->appointment->pet)->Name ?? 'Không có thông tin thú cưng';
+            $appointment = $invoice->appointment;
+            $invoice->name = optional(optional($appointment)->pet)->Name ?? 'Không có thông tin thú cưng';
         }
 
         return response()->json(['data' => $invoices]);
@@ -190,30 +195,36 @@ class InvoicesController extends Controller
     }
 
     // Xem chi tiết hóa đơn
-    public function show($id)
-    {
-        $invoice = Invoices::with(['appointment.pet', 'medications'])
-            ->where('InvoiceID', $id)
-            ->first();
+   public function show($id)
+{
+    $invoice = Invoices::with(['appointment.services', 'appointment.service', 'appointment.user', 'appointment.pet', 'medications'])
+        ->where('InvoiceID', $id)
+        ->first();
 
-        if (!$invoice) return response()->json(['message' => 'Not found'], 404);
-
-        $invoice->name = optional($invoice->appointment->pet)->Name;
-
-        $medicines = $invoice->medications->map(function ($m) {
-            return [
-                'MedicationID' => $m->MedicationID,
-                'Name' => $m->Name,
-                'Price' => $m->Price,
-                'Quantity' => $m->pivot->Quantity,
-            ];
-        });
-
-        $data = $invoice->toArray();
-        $data['medications'] = $medicines;
-
-        return response()->json($data);
+    if (!$invoice) {
+        return response()->json(['message' => 'Not found'], 404);
     }
+
+    $appointment = $invoice->appointment;
+
+    if (!$appointment) {
+        return response()->json(['error' => 'Không tìm thấy lịch hẹn'], 404);
+    }
+
+    $medicines = $invoice->medications->map(function ($m) {
+        return [
+            'MedicationID' => $m->MedicationID,
+            'Name' => $m->Name,
+            'Price' => $m->Price,
+            'Quantity' => $m->pivot->Quantity,
+        ];
+    });
+
+    $data = $invoice->toArray();
+    $data['medications'] = $medicines;
+
+    return response()->json($data);
+}
 
     // Cập nhật hóa đơn
     public function update(Request $request, $id)

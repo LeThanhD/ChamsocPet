@@ -19,15 +19,26 @@ use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OCRController;
-
-
+use Illuminate\Http\Request;
+use App\Models\Users;
 
 // 📸 Xử lý OCR hóa đơn từ ảnh (không cần đăng nhập)
 Route::post('/ocr/extract', [OCRController::class, 'extractText']);
 
 // 🔐 Đăng nhập
+Route::get('/verify-email', [UsersController::class, 'verifyEmail']);
 Route::post('/login', [UsersController::class, 'login'])->name('login');
 Route::post('/logout', [UsersController::class, 'logout']);
+Route::post('/check-email-verification', function (Request $request) {
+    $user = Users::where('email', $request->email)->first();
+
+    if (!$user) {
+        return response()->json(['verified' => false, 'message' => 'Không tìm thấy người dùng'], 404);
+    }
+
+    return response()->json(['verified' => $user->hasVerifiedEmail()]);
+});
+
 
 // 👤 Đăng ký & quản lý người dùng
 Route::prefix('/users')->controller(UsersController::class)->group(function () {
@@ -61,7 +72,12 @@ Route::prefix('/appointments')->controller(AppointmentController::class)->group(
     Route::put('/update-service/{id}', 'updateService');
     Route::get('/check-staff-availability', 'checkStaffAvailability');
     Route::get('/{id}', 'show');
-    // Route::delete('/del/{id}', 'deleteAppointment');
+    Route::get('/services/by-species', 'fetchServicesBySpecies');
+    Route::get('/staff/booked/slots',  'getAllBookedSlots');
+    Route::get('/unseen/count', 'countUnseenAppointments');
+    Route::post('/mark-seen/{id}', 'markAppointmentAsSeen');
+    Route::get('/{id}/medications', 'getMedicationsByAppointment');
+    Route::post('/{id}/medications/update', 'updateMedications');
 });
 
 Route::prefix('/payments')->controller(PaymentController::class)->group(function () {
@@ -112,6 +128,9 @@ Route::prefix('/pets')->controller(PetController::class)->group(function () {
     Route::put('/{id}', 'update');
     Route::get('/{id}','show');
     Route::get('/{id}/used-services-medications',  'getPetUsedServicesAndMedications');
+    Route::get('/accines/{id}', 'getPetVaccines');
+    Route::get('/vaccines/all', 'getAllVaccines');
+    Route::get('/detail/{id}/all',  'getPetDetailWithVaccines');
 });
 
     Route::prefix('/notifications')->controller(NotificationController::class)->group(function () {
@@ -177,7 +196,6 @@ Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
     Route::prefix('/appointments')->controller(AppointmentController::class)->group(function () {
         Route::get('/', 'index');
         Route::put('/{id}', 'update');
-        // Route::delete('/{id}', 'destroy');
         Route::put('/end/{id}', 'endAppointment');
         Route::post('/{id}/approve', 'approve');
     });
@@ -189,34 +207,11 @@ Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
         Route::delete('/{id}', 'destroy');
     });
 
-    Route::prefix('/medical-histories')->controller(MedicalHistoryController::class)->group(function () {
-        Route::get('/', 'index');
-        Route::post('/', 'store');
-        Route::put('/{id}', 'update');
-        Route::delete('/{id}', 'destroy');
-    });
-
-    Route::prefix('/medical-records')->controller(MedicalRecordsController::class)->group(function () {
-        Route::get('/', 'getList');
-        Route::get('/{id}', 'getDetail');
-        Route::post('/', 'create');
-        Route::put('/{id}', 'update');
-        Route::delete('/{id}', 'delete');
-    });
-
     Route::prefix('/pet-notes')->controller(PetNotesController::class)->group(function () {
         Route::get('/', 'getList');
         Route::get('/{id}', 'getDetail');
         Route::post('/', 'store');
         Route::put('/update-service', 'updateService');
-    });
-
-    Route::prefix('/prescriptions')->controller(PrescriptionsController::class)->group(function () {
-        Route::get('/', 'getList');
-        Route::get('/{id}', 'getDetail');
-        Route::post('/', 'create');
-        Route::put('/{id}', 'update');
-        Route::delete('/{id}', 'delete');
     });
 
     Route::prefix('/service-categories')->controller(ServiceCategoriesController::class)->group(function () {
@@ -225,20 +220,5 @@ Route::middleware(['auth:sanctum', 'role:staff'])->group(function () {
         Route::post('/', 'create');
         Route::put('/{id}', 'update');
         Route::delete('/{id}', 'delete');
-    });
-
-    Route::prefix('/user-logs')->controller(UserLogsController::class)->group(function () {
-        Route::get('/', 'getList');
-        Route::get('/{id}', 'getDetail');
-        Route::post('/', 'create');
-        Route::put('/{id}', 'update');
-        Route::delete('/{id}', 'delete');
-    });
-
-    Route::prefix('/payment-methods')->controller(PaymentMethodController::class)->group(function () {
-        Route::get('/', 'index');
-        Route::post('/', 'store');
-        Route::put('/{id}', 'update');
-        Route::delete('/{id}', 'destroy');
     });
 });

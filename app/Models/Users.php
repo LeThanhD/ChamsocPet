@@ -2,11 +2,12 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Auth\MustVerifyEmail; 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Notifications\Notifiable;
 
-class Users extends Authenticatable
+class Users extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens, Notifiable;
 
@@ -31,7 +32,8 @@ class Users extends Authenticatable
         'Role',
         'Status',
         'CreatedAt',
-        'fcm_token'
+        'fcm_token',
+        'email_verified_at', // ✅ thêm cột này vào nếu chưa có
     ];
 
     protected $hidden = [
@@ -43,6 +45,7 @@ class Users extends Authenticatable
     protected $casts = [
         'CreatedAt' => 'datetime',
         'BirthDate' => 'date',
+        'email_verified_at' => 'datetime', // ✅ convert sang datetime
     ];
 
     public function getAuthPassword()

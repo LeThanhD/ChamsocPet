@@ -180,14 +180,25 @@ public function store(Request $request)
 
 
     // ✅ Lấy tất cả lịch hẹn cho nhân viên
-    public function getAllAppointmentsForStaff(Request $request)
+   public function getAllAppointmentsForStaff(Request $request)
     {
         $role = $request->query('role');
-        if ($role !== 'staff') {
+
+        // ✅ Chấp nhận cả staff và doctor
+        if (!in_array($role, ['staff', 'doctor'])) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
+        // ✅ Lấy danh sách lịch hẹn theo từng vai trò
         $appointments = Appointment::with(['user', 'pet', 'services', 'staff'])
+            ->when($role === 'doctor', function ($query) {
+                // Bác sĩ chỉ xem lịch hẹn ở trạng thái "Chờ thêm thuốc"
+                $query->where('Status', 'Chờ thêm thuốc');
+            })
+            ->when($role === 'staff', function ($query) {
+                // Nhân viên thấy tất cả lịch trừ "Kết thúc"
+                $query->where('Status', '!=', 'Kết thúc');
+            })
             ->orderBy('AppointmentDate', 'desc')
             ->get();
 
@@ -654,4 +665,112 @@ public function destroy(Request $request, $id)
         'reason' => $reason
     ], 200);
 }
+
+public function fetchServicesBySpecies(Request $request)
+{
+    $species = $request->query('species'); 
+    $keyword = $request->query('keyword'); 
+
+    if (!$species) {
+        return response()->json(['message' => 'Thiếu tham số species'], 400);
+    }
+
+    $query = DB::table('services')->where('CategoryID', $species);
+
+    if ($keyword) {
+        $query->where('ServiceName', 'like', '%' . $keyword . '%');
+    }
+
+    $services = $query->get();
+
+    return response()->json([
+        'success' => true,
+        'data' => $services
+    ]);
+}
+
+public function getAllBookedSlots(Request $request)
+{
+    $staffId = $request->query('staff_id');
+
+    if (!$staffId) {
+        return response()->json(['message' => 'Thiếu staff_id'], 400);
+    }
+
+    // ✅ Chỉ lấy các trạng thái từ "Đã duyệt" trở lên
+    $appointments = Appointment::where('StaffID', $staffId)
+        ->whereIn('Status', ['Đã duyệt', 'Chờ khám', 'Đang khám', 'Hoàn tất dịch vụ', 'Chờ thêm thuốc']) 
+        ->orderBy('AppointmentDate')
+        ->get(['AppointmentDate', 'AppointmentTime', 'Status']);
+
+    if ($appointments->isEmpty()) {
+        return response()->json(['message' => 'Appointment not found'], 404);
+    }
+
+    return response()->json([
+        'success' => true,
+        'data' => $appointments
+    ]);
+}
+
+    public function countUnseenAppointments()
+    {
+        $count = Appointment::where('is_seen', 0)
+                            ->where('Status', '!=', 'Kết thúc') // Tuỳ logic nếu cần
+                            ->count();
+
+        return response()->json(['unseen_count' => $count]);
+    }
+
+
+    public function markAppointmentAsSeen($id)
+    {
+        $appointment = Appointment::find($id);
+        if ($appointment) {
+            $appointment->is_seen = 1;
+            $appointment->save();
+        }
+
+        return response()->json(['message' => 'Đã đánh dấu đã xem']);
+    }
+
+    public function getMedicationsByAppointment($appointmentId)
+{
+    $medications = DB::table('appointment_medications')
+        ->join('medications', 'appointment_medications.MedicationID', '=', 'medications.MedicationID')
+        ->where('appointment_medications.AppointmentID', $appointmentId)
+        ->select('medications.*', 'appointment_medications.Quantity')
+        ->get();
+
+    return response()->json(['data' => $medications]);
+}
+
+public function updateMedications(Request $request, $appointmentId)
+{
+    $validator = Validator::make($request->all(), [
+        'medications' => 'required|array',
+        'medications.*.MedicationID' => 'required|string|exists:medications,MedicationID',
+        'medications.*.Quantity' => 'required|integer|min:1',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    // Xóa thuốc cũ
+    DB::table('appointment_medications')->where('AppointmentID', $appointmentId)->delete();
+
+    // Thêm thuốc mới
+    foreach ($request->medications as $med) {
+        DB::table('appointment_medications')->insert([
+            'AppointmentID' => $appointmentId,
+            'MedicationID' => $med['MedicationID'],
+            'Quantity' => $med['Quantity'],
+            // Bỏ created_at và updated_at nếu không có cột trong bảng
+        ]);
+    }
+
+    return response()->json(['message' => 'Cập nhật thuốc thành công']);
+}
+
 }

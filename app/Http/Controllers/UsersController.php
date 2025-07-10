@@ -19,6 +19,9 @@ use App\Http\Controllers\InvoicesController;
 use Carbon\Carbon;
 use App\Models\AppointmentHistory;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\VerifyEmailRegister;
 
 class UsersController extends Controller
 {
@@ -47,7 +50,7 @@ class UsersController extends Controller
         return $prefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
     }
 
-    public function index(Request $request)
+        public function index(Request $request)
     {
         $role = $request->query('role');
 
@@ -59,8 +62,12 @@ class UsersController extends Controller
 
         $users = $query->get(['UserID', 'FullName', 'Email', 'Role']);
 
-        return response()->json(['data' => $users]);
+        return response()->json([
+            'success' => true,
+            'data' => $users
+        ]);
     }
+
 
 public function getUserFullDetail($id)
 {
@@ -193,6 +200,44 @@ public function getUserWithCompletedAppointments()
     ]);
 }
 
+ public function verifyEmail(Request $request)
+{
+    $token = $request->query('token');
+
+    $record = \DB::table('email_verifications')->where('token', $token)->first();
+
+    if (!$record) {
+        return response()->json(['message' => 'Liên kết không hợp lệ hoặc đã hết hạn'], 400);
+    }
+
+    $data = json_decode($record->data, true);
+    $role = $data['role'] ?? 'owner';
+
+    $user = new Users();
+    $user->UserID = $this->generateUserID($role);
+    $user->Username = $data['username'];
+    $user->PasswordHash = Hash::make($data['password']);
+    $user->Email = $data['email'];
+    $user->Phone = $data['phone'];
+    $user->FullName = $data['full_name'];
+    $user->BirthDate = $data['birth_date'];
+    $user->Address = $data['address'];
+    $user->NationalID = $data['national_id'];
+    $user->Gender = $data['gender'] ?? 1;
+    $user->Role = $role;
+    $user->Status = 'active';
+    $user->CreatedAt = now();
+    $user->email_verified_at = now(); // ✅ Đánh dấu email đã xác minh
+    $user->save();
+
+    // ✅ Xóa token đã dùng
+    \DB::table('email_verifications')->where('token', $token)->delete();
+
+    return response()->json([
+        'message' => '✅ Tài khoản đã được xác nhận và tạo thành công!',
+        'verified' => true
+    ]);
+}
 
 
     public function getSystemStatistics(Request $request)
@@ -328,44 +373,53 @@ public function getUserWithCompletedAppointments()
     }
 
 
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'username'     => 'required|unique:Users,Username',
-            'password'     => 'required|min:8',
-            'email'        => 'required|email|unique:Users,Email',
-            'phone'        => ['required', 'regex:/^(0|\+84)[0-9]{9,10}$/'],
-            'full_name'    => 'required',
-            'birth_date'   => 'required|date',
-            'address'      => 'required',
-            'national_id'  => ['required', 'digits_between:9,12', 'unique:Users,NationalID'],
-            'gender'       => 'nullable|in:0,1',
-            'role'         => 'nullable|in:staff,owner',
-        ]);
 
-        $role = $validated['role'] ?? 'owner';
-        $user = new Users();
+public function store(Request $request)
+{
+    $validated = $request->validate([
+        'username'     => 'required|unique:Users,Username',
+        'password'     => 'required|min:8',
+        'email'        => 'required|email|unique:Users,Email',
+        'phone'        => ['required', 'regex:/^(0|\+84)[0-9]{9,10}$/'],
+        'full_name'    => 'required',
+        'birth_date'   => 'required|date',
+        'address'      => 'required',
+        'national_id'  => ['required', 'digits_between:9,12', 'unique:Users,NationalID'],
+        'gender'       => 'nullable|in:0,1',
+        'role'         => 'nullable|in:staff,owner',
+    ]);
 
-        $user->UserID       = $this->generateUserID($role);
-        $user->Username     = $validated['username'];
-        $user->PasswordHash = Hash::make($validated['password']);
-        $user->Email        = $validated['email'];
-        $user->Phone        = $validated['phone'];
-        $user->FullName     = $validated['full_name'];
-        $user->BirthDate    = $validated['birth_date'];
-        $user->Address      = $validated['address'];
-        $user->NationalID   = $validated['national_id'];
-        $user->Gender       = $validated['gender'] ?? 1;
-        $user->Role         = $role;
-        $user->Status       = 'active';
-        $user->CreatedAt    = now();
-        $user->save();
+    try {
+        $token = Str::random(64);
 
+        // Lưu vào bảng tạm
+        \DB::table('email_verifications')->updateOrInsert(
+            ['email' => $validated['email']],
+            [
+                'token' => $token,
+                'data' => json_encode($validated),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
+        // Gửi email xác minh
+        Mail::to($validated['email'])->send(new VerifyEmailRegister($token));
+
+        // Trả kết quả JSON
         return response()->json([
-            'message' => 'Người dùng đã được tạo thành công!',
-            'user_id' => $user->UserID,
-        ], 201);
+            'message' => '🎉 Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.'
+        ], 200);
+
+    } catch (\Exception $e) {
+        // Nếu lỗi (mail hoặc bất kỳ lý do nào)
+        return response()->json([
+            'message' => 'Đăng ký thất bại do lỗi hệ thống!',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
+
 
     public function getUserById($id)
     {
@@ -483,4 +537,5 @@ public function getUserWithCompletedAppointments()
 
         return response()->json(['message' => 'Đăng xuất thành công']);
     }
+
 }

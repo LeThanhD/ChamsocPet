@@ -187,7 +187,7 @@ class _MomoPaymentScreenState extends State<MomoPaymentScreen> {
               const SizedBox(height: 24),
               Center(
                 child: Image.asset(
-                  'assets/img.png',
+                  'assets/momo.png',
                   width: 250,
                   height: 250,
                   fit: BoxFit.contain,

@@ -159,6 +159,23 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
     }
   }
 
+  Future<List<Map<String, dynamic>>> fetchSuggestedServices() async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('http://192.168.0.108:8000/api/appointments/suggested-services/by-user?user_id=$userId'),
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      return List<Map<String, dynamic>>.from(decoded);
+    } else {
+      return [];
+    }
+  }
 
 
   // Kiểm tra lịch hẹn của nhân viên trước khi tạo mới
@@ -183,8 +200,9 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
   }
 
   Future<void> fetchServicesBySpecies() async {
-    Map<String, List<dynamic>> tempMap = {}; // Tạm lưu kết quả
+    Map<String, List<dynamic>> tempMap = {}; // Tạm lưu kết quả dịch vụ theo species
 
+    // 1. Gọi API lấy dịch vụ theo từng species
     for (String species in selectedSpeciesList) {
       final response = await http.get(
         Uri.parse('http://192.168.0.108:8000/api/appointments/services/by-species?species=$species'),
@@ -198,10 +216,27 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
       }
     }
 
+    final token = await getToken();
+    final suggestedRes = await http.get(
+      Uri.parse('http://192.168.0.108:8000/api/appointments/suggested-services?user_id=$userId'),
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (suggestedRes.statusCode == 200) {
+      final List<dynamic> suggested = jsonDecode(suggestedRes.body);
+      if (suggested.isNotEmpty) {
+        tempMap['🔁 Đã từng dùng'] = suggested;
+      }
+    }
+
+    // 3. Cập nhật state
     setState(() {
       servicesBySpecies = tempMap;
-      selectedServiceIDs = []; // Reset khi đổi thú cưng
-      filteredServicesBySpecies = Map.from(tempMap); // <- thêm dòng này
+      selectedServiceIDs = [];
+      filteredServicesBySpecies = Map.from(tempMap);
     });
   }
 

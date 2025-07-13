@@ -2,9 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
-import '../Profile/ProfilePage.dart';
-
-
 import 'AppointmentDetailPage.dart';
 
 class AppointmentHistoryPage extends StatefulWidget {
@@ -32,7 +29,7 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
       final date = DateTime.parse(dateTimeStr);
       return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     } catch (e) {
-      return dateTimeStr.split('T').first; // fallback nếu sai format
+      return dateTimeStr.split('T').first;
     }
   }
 
@@ -40,6 +37,14 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
     final prefs = await SharedPreferences.getInstance();
     role = prefs.getString('role');
     userId = prefs.getString('user_id');
+
+    if (userId == null || role == null) {
+      if (mounted) {
+        // Quay về màn hình đăng nhập nếu mất phiên
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+      return;
+    }
 
     String url = role == 'staff'
         ? 'http://192.168.0.108:8000/api/appointment-history/all'
@@ -70,50 +75,31 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => ProfilePage()),
-        );
+        Navigator.pop(context); // Quay lại trang trước, giữ BottomNavigationBar
         return false;
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF2F3F5),
-        appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
-          child: Container(
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black),
+            onPressed: () {
+              Navigator.pop(context); // Không dùng pushReplacement
+            },
+          ),
+          title: const Text(
+            'Lịch sử hẹn',
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          ),
+          centerTitle: true,
+          flexibleSpace: Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [Color(0xFFE6DFFF), Color(0xFFB2F6FD)],
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
-              ),
-            ),
-            child: SafeArea(
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.black),
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (_) => ProfilePage()),
-                      );
-                    },
-                  ),
-                  const Expanded(
-                    child: Center(
-                      child: Text(
-                        'Lịch sử hẹn',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 48),
-                ],
               ),
             ),
           ),
@@ -137,8 +123,9 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
             String serviceNames;
             try {
               if (services is List) {
-                serviceNames =
-                    services.map((s) => s['ServiceName'] ?? '').join(', ');
+                serviceNames = services
+                    .map((s) => s['ServiceName'] ?? '')
+                    .join(', ');
               } else if (services is Map) {
                 serviceNames = services['ServiceName'] ?? '';
               } else {
@@ -151,16 +138,18 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
 
             return ListTile(
               tileColor: Colors.white,
-              contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 8),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(8),
+              ),
               onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        AppointmentDetailPage(appointment: appointment),
+                    builder: (_) => AppointmentDetailPage(
+                      appointment: appointment,
+                    ),
                   ),
                 );
               },
@@ -179,26 +168,34 @@ class _AppointmentHistoryPageState extends State<AppointmentHistoryPage> {
                           size: 16, color: Colors.black54),
                       const SizedBox(width: 6),
                       Text(
-                        _formatDateOnly(appointment['AppointmentDate']),
-                        style: const TextStyle(color: Colors.black87),
+                        _formatDateOnly(
+                            appointment['AppointmentDate']),
+                        style:
+                        const TextStyle(color: Colors.black87),
                       ),
                       const SizedBox(width: 16),
                       const Icon(Icons.access_time,
                           size: 16, color: Colors.black54),
                       const SizedBox(width: 6),
                       Text(
-                        (appointment['AppointmentTime'] ?? '').toString(),
-                        style: const TextStyle(color: Colors.black87),
+                        (appointment['AppointmentTime'] ?? '')
+                            .toString(),
+                        style:
+                        const TextStyle(color: Colors.black87),
                       ),
                     ],
                   ),
                   Text(
-                      '👨‍🔧 Nhân viên: ${staff['FullName'] ?? staff['name'] ?? 'Không rõ'}'),
-                  if ((appointment['Reason'] ?? '').toString().isNotEmpty)
+                    '👨‍🔧 Nhân viên: ${staff['FullName'] ?? staff['name'] ?? 'Không rõ'}',
+                  ),
+                  if ((appointment['Reason'] ?? '')
+                      .toString()
+                      .isNotEmpty)
                     Text('📝 Ghi chú: ${appointment['Reason']}'),
                 ],
               ),
-              trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+              trailing:
+              const Icon(Icons.chevron_right, color: Colors.grey),
             );
           },
         ),

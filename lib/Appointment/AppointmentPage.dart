@@ -196,7 +196,7 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
 
         if (data is List) {
           List<Map<String, dynamic>> loadedAppointments = List<Map<String, dynamic>>.from(data)
-              .where((a) => a['Status'] != 'Kết thúc')
+              .where((a) => a['Status'] != 'Kết thúc' && a['Status'] != 'Đã xóa')
               .toList();
 
           unseenCount = loadedAppointments.where((a) => a['is_seen'] == 0).length;
@@ -466,11 +466,6 @@ class AppointmentPageState extends State<AppointmentPage> with SingleTickerProvi
                   // Load lại danh sách để loại bỏ lịch có trạng thái "Kết thúc"
                   await fetchAppointments();
 
-                  // Chuyển sang trang lịch sử hẹn
-                  await Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AppointmentHistoryPage()),
-                  );
                 } else {
                   print('❌ Lỗi cập nhật trạng thái: ${updateRes.body}');
                 }

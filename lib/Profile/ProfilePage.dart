@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../Appointment/AppointmentHistory.dart';
 import '../QuenMk/quenMatKhau.dart';
+import '../Statistics/StatisticsScreen.dart';
 import '../bill/InvoiceListScreen.dart';
 import '../pay/AdminApprovalScreen.dart';
 import '../user/ManagementUserTotalAmount.dart';
@@ -25,7 +26,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String userRole = '';
   bool isLoading = true;
   Map<String, dynamic>? statistics;
-  Timer? _refreshTimer; // <-- thêm dòng này
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -241,6 +242,17 @@ class _ProfilePageState extends State<ProfilePage> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const InvoiceListScreen()));
                   },
                 ),
+                if (userRole == 'staff' || userRole == 'owner')
+                  _buildMenuTile(
+                    icon: Icons.bar_chart,
+                    title: 'Xem thống kê chi tiết',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const StatisticsScreen()),
+                      );
+                    },
+                  ),
                 if (userRole == 'staff' && userRole != 'doctor') ...[
                   _buildMenuTile(
                     icon: Icons.admin_panel_settings,

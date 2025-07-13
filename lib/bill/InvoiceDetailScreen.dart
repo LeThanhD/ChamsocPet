@@ -55,7 +55,6 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-
       if (data is List && data.isNotEmpty) {
         setState(() => isPaid = true);
       }
@@ -87,7 +86,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final medicines = (invoice?['medications'] ?? []) as List;
-    final status = invoice?['status']?.toString().toLowerCase() ?? '';
+    final status = invoice?['Status']?.toString().toLowerCase() ?? '';
 
     final isButtonDisabled = isPaid || status == 'chờ duyệt' || status == 'đã duyệt';
     final buttonLabel = isPaid
@@ -162,7 +161,8 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               color: Colors.white.withOpacity(0.95),
               child: Column(
                 children: [
-                  buildInfoTile('Dịch vụ', '${invoice!['ServicePrice']} đ', icon: Icons.medical_services),
+                  buildInfoTile('Dịch vụ', '${invoice!['ServicePrice']} đ',
+                      icon: Icons.medical_services),
                 ],
               ),
             ),
@@ -180,7 +180,8 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                       children: [
                         Icon(Icons.medication, color: Colors.deepPurple),
                         SizedBox(width: 8),
-                        Text('Thuốc sử dụng', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text('Thuốc sử dụng',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                       ],
                     ),
                     const SizedBox(height: 8),

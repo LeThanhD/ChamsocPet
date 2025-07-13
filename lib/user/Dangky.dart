@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
-import 'TrangChinh.dart';
+import 'TrangChinh.dart'; // hoặc LoginScreen nếu cần
 
 class RegisterFullScreen extends StatefulWidget {
   const RegisterFullScreen({super.key});
@@ -26,6 +26,7 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
 
   bool _obscurePassword = true;
   DateTime? birthDate;
+  bool _showVerifyButton = false;
 
   final RegExp _phoneRegExp = RegExp(r'^\d{9,11}$');
   final RegExp _emailRegExp = RegExp(r'^[\w\.-]+@[\w\.-]+\.\w{2,4}$');
@@ -87,15 +88,27 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(responseData['message'] ?? 'Đăng ký thành công!')),
-        );
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng kiểm tra email để xác minh tài khoản!'),
-            duration: Duration(seconds: 5),
+          SnackBar(
+            content: Text(
+              '${responseData['message'] ?? 'Đăng ký thành công!'}\nVui lòng kiểm tra email để xác minh.',
+            ),
           ),
         );
+
+        setState(() {
+          _showVerifyButton = true; // ✅ Hiện nút xác minh email
+        });
+
+        // ✅ Clear form sau đăng ký (trừ email)
+        _usernameController.clear();
+        _passwordController.clear();
+        //_emailController.clear(); // ❌ Đừng xoá để còn xác minh
+        _phoneController.clear();
+        _fullNameController.clear();
+        _addressController.clear();
+        _nationalIDController.clear();
+        _dateController.clear();
+        birthDate = null;
       } else {
         String message = responseData['message'] ?? 'Lỗi không xác định';
         if (responseData['errors'] != null) {
@@ -116,6 +129,13 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
+      if (birthDate == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Vui lòng chọn ngày sinh")),
+        );
+        return;
+      }
+
       final userData = {
         "username": _usernameController.text.trim(),
         "password": _passwordController.text.trim(),
@@ -126,6 +146,7 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
         "address": _addressController.text.trim(),
         "national_id": _nationalIDController.text.trim(),
       };
+
       submitToAPI(userData);
     }
   }
@@ -172,11 +193,7 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  TextFormField(
-                    controller: _usernameController,
-                    decoration: _input("Tài khoản"),
-                    validator: (v) => v == null || v.isEmpty ? "Nhập tài khoản" : null,
-                  ),
+                  TextFormField(controller: _usernameController, decoration: _input("Tài khoản"), validator: (v) => v == null || v.isEmpty ? "Nhập tài khoản" : null),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _passwordController,
@@ -189,9 +206,7 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
                     ),
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Nhập mật khẩu';
-                      if (!_passwordRegExp.hasMatch(v)) {
-                        return 'Ít nhất 8 ký tự, 1 hoa, 1 số, 1 ký tự đặc biệt';
-                      }
+                      if (!_passwordRegExp.hasMatch(v)) return 'Ít nhất 8 ký tự, 1 hoa, 1 số, 1 ký tự đặc biệt';
                       return null;
                     },
                   ),
@@ -206,35 +221,13 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _phoneController,
-                    decoration: _input("Số điện thoại"),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return "Nhập số điện thoại";
-                      if (!_phoneRegExp.hasMatch(v)) return "Sai định dạng";
-                      return null;
-                    },
-                  ),
+                  TextFormField(controller: _phoneController, decoration: _input("Số điện thoại"), validator: (v) => v == null || v.isEmpty ? "Nhập số điện thoại" : (!_phoneRegExp.hasMatch(v) ? "Sai định dạng" : null)),
                   const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _fullNameController,
-                    decoration: _input("Họ và tên"),
-                    validator: (v) => v == null || v.isEmpty ? "Nhập họ tên" : null,
-                  ),
+                  TextFormField(controller: _fullNameController, decoration: _input("Họ và tên"), validator: (v) => v == null || v.isEmpty ? "Nhập họ tên" : null),
                   const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _dateController,
-                    readOnly: true,
-                    onTap: _selectDate,
-                    decoration: _input("Ngày sinh"),
-                    validator: (v) => v == null || v.isEmpty ? "Chọn ngày sinh" : null,
-                  ),
+                  TextFormField(controller: _dateController, readOnly: true, onTap: _selectDate, decoration: _input("Ngày sinh"), validator: (v) => v == null || v.isEmpty ? "Chọn ngày sinh" : null),
                   const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _addressController,
-                    decoration: _input("Địa chỉ"),
-                    validator: (v) => v == null || v.isEmpty ? "Nhập địa chỉ" : null,
-                  ),
+                  TextFormField(controller: _addressController, decoration: _input("Địa chỉ"), validator: (v) => v == null || v.isEmpty ? "Nhập địa chỉ" : null),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _nationalIDController,
@@ -247,75 +240,46 @@ class _RegisterFullScreenState extends State<RegisterFullScreen> {
                     },
                   ),
                   const SizedBox(height: 24),
-                  Container(
-                    width: double.infinity,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.95),
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                  ElevatedButton(
+                    onPressed: _submitForm,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black87,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
-                    child: TextButton(
-                      onPressed: _submitForm,
-                      child: const Text(
-                        "Đăng ký",
-                        style: TextStyle(
-                          color: Colors.black87,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                    child: const Text("Đăng ký", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                   ),
                   const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: Colors.lightBlue.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: TextButton.icon(
-                      icon: const Icon(Icons.verified, color: Colors.black87),
-                      label: const Text(
-                        "Tôi đã xác minh email",
-                        style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                  if (_showVerifyButton)
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.verified),
+                      label: const Text("Tôi đã xác minh email", style: TextStyle(fontWeight: FontWeight.w600)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.lightBlue.shade100,
+                        foregroundColor: Colors.black87,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: () async {
                         final email = _emailController.text.trim();
                         if (email.isEmpty || !_emailRegExp.hasMatch(email)) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Vui lòng nhập đúng email để kiểm tra")),
-                          );
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Vui lòng nhập đúng email để kiểm tra")));
                           return;
                         }
 
                         final verified = await checkEmailVerified(email);
                         if (verified) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("✅ Email đã xác minh! Đang chuyển...")),
-                          );
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Email đã xác minh! Đang chuyển...")));
                           await Future.delayed(const Duration(seconds: 1));
                           if (mounted) {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (_) => const LoginScreen()),
-                            );
+                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
                           }
                         } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("❌ Email chưa được xác minh.")),
-                          );
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("❌ Email chưa được xác minh.")));
                         }
                       },
                     ),
-                  ),
                   const SizedBox(height: 32),
                 ],
               ),

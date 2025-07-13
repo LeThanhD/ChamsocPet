@@ -58,7 +58,7 @@ class InvoicesController extends Controller
     $medicineTotal = 0;
     $medicineDetails = [];
 
-    if ($request->medicine_ids) {
+        if ($request->has('medicine_ids') && !empty($request->medicine_ids)) {
         foreach ($request->medicine_ids as $item) {
             $medicine = Medications::where('MedicationID', $item['id'])->first();
             if (!$medicine) {
@@ -76,7 +76,29 @@ class InvoicesController extends Controller
                 'subtotal' => $lineTotal,
             ];
         }
+    } else {
+        // Nếu không gửi từ client, lấy thuốc từ bảng appointment_medications
+        $meds = \DB::table('appointment_medications')
+            ->where('AppointmentID', $request->appointment_id)
+            ->get();
+
+        foreach ($meds as $med) {
+            $medicine = Medications::where('MedicationID', $med->MedicationID)->first();
+            if (!$medicine) continue;
+
+            $lineTotal = $medicine->Price * $med->Quantity;
+            $medicineTotal += $lineTotal;
+
+            $medicineDetails[] = [
+                'id' => $medicine->MedicationID,
+                'name' => $medicine->Name,
+                'price' => $medicine->Price,
+                'quantity' => $med->Quantity,
+                'subtotal' => $lineTotal,
+            ];
+        }
     }
+
 
     $total = $servicePrice + $medicineTotal;
 

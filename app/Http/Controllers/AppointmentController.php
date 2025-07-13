@@ -534,7 +534,6 @@ public function checkAll(Request $request)
     // }
 public function destroy(Request $request, $id)
 {
-    // Tìm lịch hẹn
     $appointment = Appointment::find($id);
 
     if (!$appointment) {
@@ -544,16 +543,15 @@ public function destroy(Request $request, $id)
         ], 404);
     }
 
-    // Kiểm tra trạng thái của lịch hẹn, không cho phép xóa nếu trạng thái là "Chờ khám" trở lên
-    $blockedStatuses = ['Chờ khám', 'Đang khám', 'Hoàn tất dịch vụ', 'Chờ thêm thuốc', 'Kết thúc'];
-    if (in_array($appointment->Status, $blockedStatuses)) {
+    // Không cho xóa nếu đã ở trạng thái "Đã xóa"
+    if ($appointment->Status === 'Đã xóa') {
         return response()->json([
             'status' => 'error',
-            'message' => 'Lịch hẹn không thể xóa khi đang ở trạng thái "Chờ khám" hoặc cao hơn'
+            'message' => 'Lịch hẹn đã bị xóa trước đó.'
         ], 403);
     }
 
-    // Kiểm tra UserID có hợp lệ không
+    // Kiểm tra UserID
     if (!$appointment->UserID) {
         return response()->json([
             'status' => 'error',
@@ -561,7 +559,7 @@ public function destroy(Request $request, $id)
         ], 400);
     }
 
-    // Nếu người dùng không phải là admin, yêu cầu nhập lý do khi xóa
+    // Lý do xóa
     $reason = $request->input('reason', '');
     if (empty($reason)) {
         return response()->json([
@@ -570,52 +568,23 @@ public function destroy(Request $request, $id)
         ], 400);
     }
 
-    // Kiểm tra nếu lý do xóa hợp lệ (dành cho các lý do khác)
-    if ($reason == 'Khác') {
-        $reason = $request->input('custom_reason', '');  // Nhận lý do cụ thể cho "Khác"
+    if ($reason === 'Khác') {
+        $reason = $request->input('custom_reason', '');
         if (empty($reason)) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Lý do xóa không thể bỏ trống khi chọn "Khác"'
+                'message' => 'Lý do xóa không thể bỏ trống khi chọn "Khác".'
             ], 400);
         }
     }
 
-    // Lưu lý do xóa vào bảng appointment_deletions
-    DB::table('appointment_deletions')->insert([
-        'appointment_id' => $appointment->AppointmentID,
-        'reason' => $reason,
-        'created_at' => now(),
-    ]);
+    // ✅ Cập nhật trạng thái thành "Đã xóa"
+    $appointment->Status = 'Đã xóa';
+    $appointment->save();
 
-    // Cập nhật lịch sử lý do xóa vào bảng AppointmentHistory
-    AppointmentHistory::create([
-        'HistoryID' => 'HIS' . strtoupper(Str::random(6)),
-        'AppointmentID' => $appointment->AppointmentID,
-        'UpdatedAt' => now(),
-        'StatusBefore' => $appointment->Status,
-        'StatusAfter' => 'Đã hủy',
-        'Note' => "Lý do hủy: $reason", // Ghi lại lý do hủy
-    ]);
-
-    // Xóa dịch vụ liên quan trong bảng appointment_service
-    DB::table('appointment_service')->where('appointment_id', $appointment->AppointmentID)->delete();
-
-    // Xóa lịch sử liên quan từ AppointmentHistory
-    AppointmentHistory::where('AppointmentID', $appointment->AppointmentID)->delete();
-
-    // Xóa hóa đơn nếu có
-    Invoices::where('AppointmentID', $appointment->AppointmentID)->delete();
-
-    // Xóa cuộc hẹn
-    $appointment->delete();
-
-    // Lấy thông tin người dùng từ bảng Users
-    $user = Users::find($appointment->UserID);  // Lấy người dùng qua ID người dùng từ lịch hẹn
-
-    // Kiểm tra người dùng và gửi thông báo đẩy nếu tồn tại
+    // Gửi thông báo nếu có FCM token
+    $user = Users::find($appointment->UserID);
     if ($user && $user->fcm_token) {
-        // Gửi thông báo đẩy qua Firebase
         $firebase = new FirebaseService();
         $firebase->sendNotificationWithData(
             $user->fcm_token,
@@ -629,42 +598,29 @@ public function destroy(Request $request, $id)
             ]
         );
 
-        // Lưu thông báo vào DB
-        $lastNotificationId = Notification::max('id');
-        $lastNumber = 0;
-
-        if ($lastNotificationId && preg_match('/^NOTI(\d+)$/', $lastNotificationId, $matches)) {
-            $lastNumber = (int)$matches[1]; // Lấy số từ ID (ví dụ "001" từ "NOTI001")
-        }
-
-        // Tạo ID mới
-        $nextNumber = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
+        // Tạo thông báo DB
+        $lastNotificationId = Notification::max('id') ?? 'NOTI000';
+        preg_match('/^NOTI(\d+)$/', $lastNotificationId, $matches);
+        $nextNumber = str_pad((int)($matches[1] ?? 0) + 1, 3, '0', STR_PAD_LEFT);
         $notificationId = 'NOTI' . $nextNumber;
 
-        // Tạo thông báo
         Notification::create([
             'id' => $notificationId,
-            'user_id' => $user->UserID, // Đảm bảo đã có user_id từ user
-            'title' => 'Lịch hẹn đã bị hủy',
+            'user_id' => $user->UserID,
+            'title' => 'Lịch hẹn đã bị xóa',
             'message' => "Lý do: $reason",
             'is_read' => false,
-            'action' => 'appointment_deleted', // Thêm action vào
+            'action' => 'appointment_deleted',
         ]);
-    } else {
-        // Nếu không tìm thấy người dùng, trả về lỗi
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Không tìm thấy người dùng liên quan đến lịch hẹn.'
-        ], 404);
     }
 
     return response()->json([
         'status' => 'success',
-        'message' => "Lịch hẹn đã bị hủy. Lý do: $reason",
+        'message' => "Lịch hẹn đã được xóa với lý do: $reason",
         'appointment_id' => $appointment->AppointmentID,
-        'reason' => $reason
-    ], 200);
+    ]);
 }
+
 
 public function fetchServicesBySpecies(Request $request)
 {
@@ -745,6 +701,7 @@ public function getAllBookedSlots(Request $request)
     return response()->json(['data' => $medications]);
 }
 
+
 public function updateMedications(Request $request, $appointmentId)
 {
     $validator = Validator::make($request->all(), [
@@ -772,5 +729,37 @@ public function updateMedications(Request $request, $appointmentId)
 
     return response()->json(['message' => 'Cập nhật thuốc thành công']);
 }
+
+public function getSuggestedServicesByUser(Request $request)
+{
+    $userId = $request->query('user_id');
+
+    if (!$userId) {
+        return response()->json(['message' => 'Thiếu user_id'], 400);
+    }
+
+    // Lấy danh sách các InvoiceID đã thanh toán của user
+    $paidInvoiceIds = DB::table('invoices')
+        ->join('payments', 'invoices.InvoiceID', '=', 'payments.InvoiceID')
+        ->join('appointments', 'invoices.AppointmentID', '=', 'appointments.AppointmentID')
+        ->where('appointments.UserID', $userId)
+        ->where('payments.status', 'đã duyệt')
+        ->pluck('invoices.InvoiceID');
+
+    if ($paidInvoiceIds->isEmpty()) {
+        return response()->json([]);
+    }
+
+    // Lấy danh sách dịch vụ đã từng dùng (không cần đếm số lần)
+    $services = DB::table('invoice_service')
+        ->join('services', 'invoice_service.ServiceID', '=', 'services.ServiceID')
+        ->whereIn('invoice_service.InvoiceID', $paidInvoiceIds)
+        ->select('invoice_service.ServiceID', 'services.ServiceName')
+        ->distinct()
+        ->get();
+
+    return response()->json($services);
+}
+
 
 }

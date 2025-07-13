@@ -21,6 +21,11 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OCRController;
 use Illuminate\Http\Request;
 use App\Models\Users;
+use App\Http\Controllers\StatisticsController;
+
+
+
+Route::get('/statistics', [StatisticsController::class, 'getStats']);
 
 // 📸 Xử lý OCR hóa đơn từ ảnh (không cần đăng nhập)
 Route::post('/ocr/extract', [OCRController::class, 'extractText']);
@@ -71,6 +76,7 @@ Route::prefix('/appointments')->controller(AppointmentController::class)->group(
     Route::get('/check-all', 'checkAll');
     Route::put('/update-service/{id}', 'updateService');
     Route::get('/check-staff-availability', 'checkStaffAvailability');
+    Route::get('/suggested-services', 'getSuggestedServicesByUser');
     Route::get('/{id}', 'show');
     Route::get('/services/by-species', 'fetchServicesBySpecies');
     Route::get('/staff/booked/slots',  'getAllBookedSlots');

@@ -302,4 +302,39 @@ class PetController extends Controller
             'data' => $vaccines
         ]);
     }
+
+    public function destroy(Request $request, $id)
+{
+    $pet = Pet::find($id);
+    if (!$pet) {
+        return response()->json(['message' => 'Pet not found'], 404);
+    }
+
+    $userId = $request->input('user_id');
+
+    if ($userId !== $pet->UserID) {
+        return response()->json(['message' => 'Bạn không có quyền!'], 403);
+    }
+
+    if ($pet->status == 0) {
+        return response()->json(['message' => 'Thú cưng đã bị xoá trước đó.'], 400);
+    }
+
+    $hasUnfinishedAppointments = Appointment::where('PetID', $id)
+        ->where('Status', '!=', 'Kết thúc')
+        ->exists();
+
+    if ($hasUnfinishedAppointments) {
+        return response()->json(['message' => 'Chỉ có thể xoá thú cưng khi tất cả lịch hẹn đã kết thúc.'], 400);
+    }
+
+    // ✅ Xoá mềm thú cưng
+    $pet->status = 0;
+    $pet->save();
+
+    // ❌ Không còn bảng notes nên không xoá gì thêm
+
+    return response()->json(['message' => 'Thú cưng đã được xoá (mềm).']);
+}
+
 }

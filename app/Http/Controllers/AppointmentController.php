@@ -761,5 +761,4 @@ public function getSuggestedServicesByUser(Request $request)
     return response()->json($services);
 }
 
-
 }

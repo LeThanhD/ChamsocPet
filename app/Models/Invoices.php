@@ -8,7 +8,6 @@ use App\Models\Payment;
 use App\Models\Service;
 use App\Models\Appointment;
 
-
 class Invoices extends Model
 {
     protected $table = 'Invoices';
@@ -24,7 +23,8 @@ class Invoices extends Model
         'AppointmentID',
         'ServicePrice',
         'MedicineTotal',
-        // 'Status', // Bỏ comment nếu bạn thêm cột Status trong DB
+        'Status',      // ✅ Trạng thái hóa đơn (Chưa thanh toán, Đã thanh toán, v.v.)
+        'Note',        // ✅ Dòng mô tả khuyến mãi như "Khuyến mãi 10%..."
     ];
 
     /**
@@ -42,9 +42,9 @@ class Invoices extends Model
     {
         return $this->belongsToMany(
             Service::class,
-            'invoice_service', // tên bảng trung gian
-            'InvoiceID',       // khóa ngoại trỏ đến bảng invoices
-            'ServiceID'        // khóa ngoại trỏ đến bảng services
+            'invoice_service',
+            'InvoiceID',
+            'ServiceID'
         );
     }
 
@@ -60,7 +60,6 @@ class Invoices extends Model
             'MedicineID'
         )->withPivot('Quantity');
     }
-
 
     /**
      * Quan hệ 1-nhiều với bảng Payment (nếu có bảng Payment để check trạng thái thanh toán)

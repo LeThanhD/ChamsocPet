@@ -33,7 +33,9 @@ class Users extends Authenticatable implements MustVerifyEmail
         'Status',
         'CreatedAt',
         'fcm_token',
-        'email_verified_at', // ✅ thêm cột này vào nếu chưa có
+        'email_verified_at',
+        'discount',
+        'promotion_note',
     ];
 
     protected $hidden = [
@@ -45,7 +47,8 @@ class Users extends Authenticatable implements MustVerifyEmail
     protected $casts = [
         'CreatedAt' => 'datetime',
         'BirthDate' => 'date',
-        'email_verified_at' => 'datetime', // ✅ convert sang datetime
+        'email_verified_at' => 'datetime',
+        'discount' => 'integer',
     ];
 
     public function getAuthPassword()

@@ -7,8 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 use App\Models\Pet;
 use App\Models\User;
 use App\Models\Service;
-use Illuminate\Support\Str;
-
 
 class PetNotes extends Model
 {
@@ -18,7 +16,6 @@ class PetNotes extends Model
     protected $primaryKey = 'NoteID';
     public $incrementing = false;
     protected $keyType = 'string';
-
     public $timestamps = false;
 
     protected $fillable = [
@@ -27,9 +24,10 @@ class PetNotes extends Model
         'Content',
         'ServiceID',
         'CreatedAt',
-        'CreatedBy' // ✅ Bổ sung dòng này để fix lỗi Duplicate entry
+        'CreatedBy',
     ];
 
+    // 🔗 Quan hệ
     public function pet()
     {
         return $this->belongsTo(Pet::class, 'PetID', 'PetID');
@@ -50,20 +48,18 @@ class PetNotes extends Model
         return $this->belongsTo(Service::class, 'ServiceID', 'ServiceID');
     }
 
-    // Trong PetNotes.php (model)
-
+    // ✅ Tạo NoteID duy nhất
     public static function generateUniqueNoteID()
-{
-    $lastNote = self::orderBy('NoteID', 'desc')->first();
+    {
+        $prefix = 'PNOTE';
+        $latest = self::orderBy('NoteID', 'desc')->first();
+        $number = $latest ? intval(substr($latest->NoteID, strlen($prefix))) : 0;
 
-    if ($lastNote) {
-        $lastNumber = (int) substr($lastNote->NoteID, 5);
-        $newNumber = $lastNumber + 1;
-    } else {
-        $newNumber = 1;
+        do {
+            $number++;
+            $newID = $prefix . str_pad($number, 4, '0', STR_PAD_LEFT);
+        } while (self::where('NoteID', $newID)->exists()); // 🔒 Kiểm tra trùng thực tế
+
+        return $newID;
     }
-
-    return 'PNOTE' . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
-}
-
 }

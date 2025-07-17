@@ -53,6 +53,7 @@ Route::prefix('/users')->controller(UsersController::class)->group(function () {
     Route::put('/{id}', 'update');
     Route::delete('/{id}', 'destroy');
     Route::post('/send-reset-code', 'sendResetCode');
+    Route::get('/promotion/{id}/pro/mo/ti', 'getPromotion');
     Route::post('/reset-password', 'resetPassword');
     Route::get('/statistics/TotalAmount/human', 'getSystemStatistics');
     Route::post('/force-reset-password', 'forceResetPassword');

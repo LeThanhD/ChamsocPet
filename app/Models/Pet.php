@@ -31,7 +31,8 @@ class Pet extends Model
         'vaccinated',
         'last_vaccine_date',
         'trained',
-        'status'
+        'status',
+        'HealthNote' 
     ];
 
     protected static function boot()

@@ -15,7 +15,7 @@ use Illuminate\Support\Str;
 class InvoicesController extends Controller
 {
     // Tạo hóa đơn
-    public function store(Request $request)
+public function store(Request $request)
 {
     \Log::info('Dữ liệu tạo hóa đơn:', $request->all());
 
@@ -30,10 +30,21 @@ class InvoicesController extends Controller
         return response()->json(['errors' => $validator->errors()], 422);
     }
 
-    $appointment = Appointment::with(['services', 'service', 'user', 'pet'])
-    ->where('AppointmentID', $request->appointment_id)
-    ->first();
-
+    $appointment = Appointment::with([
+        'services',
+        'service',
+        'pet',
+        'user' => function ($query) {
+            $query->select(
+                'UserID',
+                'discount',
+                'promotion_title', // 🔥 thêm dòng này
+                'promotion_note',
+                'is_vip',
+                'total_completed_appointments'
+            );
+        }
+    ])->where('AppointmentID', $request->appointment_id)->first();
 
     if (!$appointment) {
         return response()->json(['message' => 'Lịch hẹn không tồn tại'], 404);
@@ -58,7 +69,7 @@ class InvoicesController extends Controller
     $medicineTotal = 0;
     $medicineDetails = [];
 
-        if ($request->has('medicine_ids') && !empty($request->medicine_ids)) {
+    if ($request->has('medicine_ids') && !empty($request->medicine_ids)) {
         foreach ($request->medicine_ids as $item) {
             $medicine = Medications::where('MedicationID', $item['id'])->first();
             if (!$medicine) {
@@ -77,7 +88,6 @@ class InvoicesController extends Controller
             ];
         }
     } else {
-        // Nếu không gửi từ client, lấy thuốc từ bảng appointment_medications
         $meds = \DB::table('appointment_medications')
             ->where('AppointmentID', $request->appointment_id)
             ->get();
@@ -99,41 +109,72 @@ class InvoicesController extends Controller
         }
     }
 
-
     $total = $servicePrice + $medicineTotal;
 
-    // Tạo Invoice mới
+    // 🔥 Áp dụng khuyến mãi từ user
+    $user = $appointment->user;
+    $discountPercent = 0;
+    $discountTitle = null;
+    $discountNote = null;
+
+
+    if (!is_null($user->discount) && $user->discount > 0) {
+        $discountPercent = $user->discount;
+        $discountNote = $user->promotion_note ?? "Giảm $discountPercent% từ chương trình khuyến mãi";
+    }
+    elseif ($user->is_vip) {
+        $discountPercent = 20;
+        $discountNote = 'Khuyến mãi 20% cho khách VIP';
+    } elseif ($user->total_completed_appointments > 0) {
+        $discountPercent = 10;
+        $discountNote = 'Khuyến mãi 10% cho khách hàng cũ';
+    }
+
+    // Ghi đè nếu có dữ liệu tùy chỉnh từ bảng users
+    if (!empty($user->promotion_title)) {
+        $discountTitle = $user->promotion_title;
+    }
+
+    if (!empty($user->promotion_note)) {
+        $discountNote = $user->promotion_note;
+    }
+
+    $discountAmount = round($total * $discountPercent / 100, 2);
+    $totalAfterDiscount = round($total - $discountAmount, 2);
+
+    // ✅ Tạo Invoice
     $invoice = Invoices::create([
-        'InvoiceID' => 'INV' . strtoupper(Str::random(6)),
+        'InvoiceID'     => 'INV' . strtoupper(Str::random(6)),
         'AppointmentID' => $appointment->AppointmentID,
-        'PetID' => $appointment->PetID,
-        'ServicePrice' => $servicePrice,
-        'MedicineTotal' => $medicineTotal,
-        'TotalAmount' => $total,
-        'Status' => 'Chưa thanh toán',
-        'CreatedAt' => now(),
+        'PetID'         => $appointment->PetID,
+        'ServicePrice'  => round($servicePrice, 2),
+        'MedicineTotal' => round($medicineTotal, 2),
+        'TotalAmount'   => $totalAfterDiscount,
+        'Note'          => $discountNote ?? $discountTitle ?? null,
+        'Status'        => 'Pending',
+        'CreatedAt'     => now(),
     ]);
 
-    // Lưu dịch vụ vào bảng trung gian invoice_service
+    // Lưu dịch vụ
     if ($services && $services->count() > 0) {
         $serviceIds = $services->pluck('ServiceID')->toArray();
         $invoice->services()->attach($serviceIds);
     }
 
-    // Lưu chi tiết thuốc vào bảng trung gian invoice_medicines
+    // Lưu thuốc
     foreach ($medicineDetails as $m) {
         InvoiceMedicine::create([
-            'InvoiceID' => $invoice->InvoiceID,
+            'InvoiceID'  => $invoice->InvoiceID,
             'MedicineID' => $m['id'],
-            'Quantity' => $m['quantity'],
+            'Quantity'   => $m['quantity'],
         ]);
     }
 
-    // Tạo thông báo
+    // Gửi thông báo
     Notification::create([
         'user_id' => $appointment->UserID,
         'title' => 'Hóa đơn thanh toán',
-        'message' => 'Hóa đơn cho lịch hẹn #' . $appointment->AppointmentID . ' đã được tạo. Tổng tiền: ' . number_format($total) . ' VND.',
+        'message' => 'Hóa đơn cho lịch hẹn #' . $appointment->AppointmentID . ' đã được tạo. Tổng tiền (sau ưu đãi): ' . number_format($totalAfterDiscount) . ' VND.',
         'created_at' => now(),
     ]);
 
@@ -141,6 +182,13 @@ class InvoicesController extends Controller
         'message' => 'Hóa đơn đã được tạo thành công',
         'data' => [
             'invoice' => $invoice,
+            'total_after_discount' => $totalAfterDiscount,
+            'discount' => [
+                'percent' => $discountPercent,
+                'title' => $discountTitle,
+                'note' => $discountNote,
+                'amount_saved' => $discountAmount,
+            ],
             'details' => [
                 'services' => $services->map(fn($s) => [
                     'id' => $s->ServiceID,

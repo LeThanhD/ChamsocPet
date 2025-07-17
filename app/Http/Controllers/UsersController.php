@@ -538,4 +538,53 @@ public function store(Request $request)
         return response()->json(['message' => 'Đăng xuất thành công']);
     }
 
+
+    public function getPromotion($userID)
+{
+    $user = Users::where('UserID', $userID)->first();
+
+    if (!$user) {
+        return response()->json(['message' => 'User not found'], 404);
+    }
+
+    // Tính tổng tiền đã thanh toán
+    $totalPaid = \DB::table('payments')
+        ->where('UserID', $userID)
+        ->sum('PaidAmount');
+
+    // Gắn giá trị vào user (nếu cần cập nhật vào DB)
+    if ($totalPaid >= 1000000 && !$user->is_vip) {
+        $user->is_vip = true;
+        $user->save();
+    }
+
+    $isOldCustomer = $user->total_completed_appointments > 0;
+
+    // Gán ưu đãi
+    $discount = 0;
+    $promotionTitle = '';
+    $promotionNote = '';
+
+    if ($user->is_vip) {
+        $discount = 20;
+        $promotionTitle = "🎉 Ưu đãi VIP 20%";
+        $promotionNote = "Bạn là khách VIP! Được giảm giá 20% và ưu tiên lịch hẹn.";
+    } elseif ($isOldCustomer) {
+        $discount = 10;
+        $promotionTitle = "🔁 Ưu đãi khách cũ 10%";
+        $promotionNote = "Cảm ơn bạn đã quay lại! Bạn được giảm 10% trên tổng đơn.";
+    }
+
+    return response()->json([
+        'UserID' => $user->UserID,
+        'FullName' => $user->FullName,
+        'is_vip' => $user->is_vip,
+        'total_paid' => $totalPaid,
+        'discount' => $discount,
+        'promotion_title' => $promotionTitle,
+        'promotion_note' => $promotionNote,
+    ]);
+}
+
+
 }

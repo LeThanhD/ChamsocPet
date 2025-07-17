@@ -23,7 +23,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     super.initState();
     fetchUserRole();
     fetchInvoiceDetail();
-    checkIfPaid(); // gọi API kiểm tra đã thanh toán
+    checkIfPaid();
   }
 
   Future<void> fetchUserRole() async {
@@ -72,6 +72,13 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       default:
         return status;
     }
+  }
+
+  String formatCurrency(dynamic amount) {
+    final parsed = double.tryParse(amount.toString()) ?? 0.0;
+    return parsed.toStringAsFixed(0).replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => '.',
+    );
   }
 
   Widget buildInfoTile(String title, String value, {IconData? icon}) {
@@ -149,24 +156,42 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                   ),
                   buildInfoTile('Tên thú cưng', invoice!['name'] ?? 'Không rõ', icon: Icons.pets),
                   buildInfoTile('Mã lịch hẹn', invoice!['AppointmentID']),
-                  buildInfoTile('Tổng tiền', '${invoice!['TotalAmount']} đ', icon: Icons.payments),
+                  buildInfoTile('Tổng tiền', '${formatCurrency(invoice!['TotalAmount'])} đ', icon: Icons.payments),
+                  if ((invoice!['Note'] ?? '').toString().isNotEmpty)
+                    buildInfoTile('🎁 Khuyến mãi', invoice!['Note'], icon: Icons.discount),
+
+                  // Tính tiền tiết kiệm
+                  if (invoice!['ServicePrice'] != null && invoice!['MedicineTotal'] != null) ...[
+                        () {
+                      final rawTotal = num.parse(invoice!['ServicePrice'].toString()) +
+                          num.parse(invoice!['MedicineTotal'].toString());
+                      final discounted = num.parse(invoice!['TotalAmount'].toString());
+                      final saved = rawTotal - discounted;
+                      if (saved > 0) {
+                        return buildInfoTile('💸 Tiết kiệm được', '${formatCurrency(saved)} đ', icon: Icons.savings);
+                      }
+                      return const SizedBox();
+                    }(),
+                  ],
+
                   buildInfoTile('Trạng thái', getDisplayStatus(status), icon: Icons.info_outline),
                 ],
               ),
             ),
             const SizedBox(height: 16),
+
             Card(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               elevation: 2,
               color: Colors.white.withOpacity(0.95),
               child: Column(
                 children: [
-                  buildInfoTile('Dịch vụ', '${invoice!['ServicePrice']} đ',
-                      icon: Icons.medical_services),
+                  buildInfoTile('Dịch vụ', '${formatCurrency(invoice!['ServicePrice'])} đ', icon: Icons.medical_services),
                 ],
               ),
             ),
             const SizedBox(height: 16),
+
             Card(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               elevation: 2,
@@ -180,8 +205,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                       children: [
                         Icon(Icons.medication, color: Colors.deepPurple),
                         SizedBox(width: 8),
-                        Text('Thuốc sử dụng',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text('Thuốc sử dụng', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -201,8 +225,8 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 
                         return ListTile(
                           title: Text(name),
-                          subtitle: Text('Số lượng: $quantity x $price đ'),
-                          trailing: Text('$total đ',
+                          subtitle: Text('Số lượng: $quantity x ${formatCurrency(price)} đ'),
+                          trailing: Text('${formatCurrency(total)} đ',
                               style: const TextStyle(fontWeight: FontWeight.bold)),
                         );
                       },
@@ -212,14 +236,13 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               ),
             ),
             const SizedBox(height: 24),
+
             if (userRole != 'staff')
               ElevatedButton.icon(
                 onPressed: isButtonDisabled
                     ? null
                     : () {
-                  final rawAmount = invoice!['TotalAmount'];
-                  final amountParsed =
-                      double.tryParse(rawAmount.toString())?.round() ?? 0;
+                  final amountParsed = num.parse(invoice!['TotalAmount'].toString()).round();
                   final invoiceId = invoice!['InvoiceID'].toString();
 
                   Navigator.push(

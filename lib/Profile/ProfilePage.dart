@@ -242,7 +242,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const InvoiceListScreen()));
                   },
                 ),
-                if (userRole == 'staff' || userRole == 'owner')
+                if (userRole == 'staff')
                   _buildMenuTile(
                     icon: Icons.bar_chart,
                     title: 'Xem thống kê chi tiết',

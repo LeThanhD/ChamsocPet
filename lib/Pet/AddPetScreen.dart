@@ -114,7 +114,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
         'last_vaccine_date': vaccinated && lastVaccineDateController.text.isNotEmpty
             ? DateTime.tryParse(lastVaccineDateController.text)?.toIso8601String().split('T').first
             : null,
-        'HealthStatus': healthController.text,
+        'HealthNote': healthController.text,
         'vaccines': vaccinated ? selectedVaccines : [],
       }),
     );

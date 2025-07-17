@@ -12,7 +12,7 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
   final nameController = TextEditingController();
   final priceController = TextEditingController();
   final descriptionController = TextEditingController();
-  String category = 'DOG';
+  String category = 'Chó';
 
   Future<void> submitService() async {
     if (!_formKey.currentState!.validate()) return;
@@ -121,7 +121,7 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
                               fillColor: Colors.white,
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                             ),
-                            items: ['DOG', 'CAT']
+                            items: ['Chó', 'Mèo']
                                 .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                                 .toList(),
                             onChanged: (val) => setState(() => category = val!),

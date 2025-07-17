@@ -30,8 +30,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           statisticsData = jsonDecode(response.body);
         });
       } else {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Lỗi: ${response.statusCode}")));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Lỗi: ${response.statusCode}")));
       }
     } catch (e) {
       ScaffoldMessenger.of(context)
@@ -164,13 +164,22 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(children: const [
-                          Icon(Icons.bar_chart, color: Colors.teal, size: 30),
-                          SizedBox(width: 8),
-                          Text("Thống kê dịch vụ",
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back, color: Colors.teal),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.bar_chart, color: Colors.teal, size: 30),
+                            const SizedBox(width: 8),
+                            const Text(
+                              "Thống kê dịch vụ",
                               style: TextStyle(
-                                  fontSize: 22, fontWeight: FontWeight.bold))
-                        ]),
+                                  fontSize: 22, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 20),
                         Row(
                           children: [

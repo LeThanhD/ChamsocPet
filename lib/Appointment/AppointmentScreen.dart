@@ -19,6 +19,9 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
   DateTime? selectedDate;
   bool isSearching = false;
   TextEditingController searchController = TextEditingController();
+  String promotionTitle = '';
+  String promotionNote = '';
+  int discount = 0;
 
   List<Map<String, String>> allBookedSlots = [];
   List<String> selectedPetIDs = [];
@@ -44,6 +47,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
     if (userId == null) return;
     await fetchPets();
     await fetchStaff();
+    await fetchUserPromotion();
   }
 
   Future<String?> getToken() async {
@@ -96,6 +100,25 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
     });
   }
 
+  Future<void> fetchUserPromotion() async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('http://192.168.0.108:8000/api/users/promotion/$userId/pro/mo/ti'),
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      setState(() {
+        promotionTitle = data['promotion_title'] ?? '';
+        promotionNote = data['promotion_note'] ?? '';
+        discount = data['discount'] ?? 0;
+      });
+    }
+  }
 
   Future<void> fetchAllBookedSlots(String staffId) async {
     final response = await http.get(
@@ -477,6 +500,30 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    if (discount > 0) ...[
+                      Card(
+                        color: Colors.yellow[100],
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                promotionTitle,
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                promotionNote,
+                                style: const TextStyle(fontSize: 14, color: Colors.black87),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     Card(
                       elevation: 2,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

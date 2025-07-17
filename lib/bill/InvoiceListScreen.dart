@@ -35,6 +35,33 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     super.dispose();
   }
 
+  String formatCurrency(dynamic amount) {
+    final parsed = double.tryParse(amount.toString()) ?? 0.0;
+    return parsed.toStringAsFixed(0).replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => '.',
+    );
+  }
+
+  String getDisplayStatus(String? status) {
+    switch (status?.toLowerCase()) {
+      case 'pending':
+      case 'chưa duyệt':
+      case 'Chưa thanh toán':
+        return 'Chờ duyệt';
+      case 'approved':
+      case 'đã duyệt':
+        return 'Đã duyệt';
+      case 'rejected':
+      case 'bị từ chối':
+        return 'Từ chối';
+      case 'paid':
+      case 'đã thanh toán':
+        return 'Đã thanh toán';
+      default:
+        return status ?? 'Không rõ';
+    }
+  }
+
   Future<void> fetchInvoices() async {
     setState(() => isLoading = true);
 
@@ -70,8 +97,6 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
 
       if (response.statusCode == 200) {
         final jsonBody = jsonDecode(response.body);
-
-        // Nếu backend trả dạng chuẩn có trường 'data'
         final dataList = jsonBody is Map && jsonBody.containsKey('data')
             ? jsonBody['data']
             : jsonBody;
@@ -101,10 +126,12 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
   }
 
   Color _getStatusColor(String? status) {
-    // Điều chỉnh nếu backend trả status tiếng Việt hoặc tiếng Anh
-    switch (status?.toLowerCase()) {
+    final normalized = status?.trim().toLowerCase(); // ✅ Loại bỏ khoảng trắng
+
+    switch (normalized) {
       case 'pending':
-      case 'chưa duyệt':
+      case 'chờ duyệt':
+      case 'Chưa thanh toán':
         return Colors.yellow.shade100;
       case 'approved':
       case 'đã duyệt':
@@ -113,6 +140,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
       case 'bị từ chối':
         return Colors.red.shade100;
       default:
+        print("⚠️ Không nhận diện được status: $status"); // debug
         return Colors.grey.shade200;
     }
   }
@@ -121,6 +149,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     final createdAt = invoice['CreatedAt'] ?? invoice['created_at'] ?? '';
     final formattedDate = createdAt.toString().split('T').first;
     final status = invoice['Status'] ?? invoice['status'] ?? 'unknown';
+    final promotionNote = invoice['Note'] ?? invoice['note'];
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -144,11 +173,16 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('🧾 Mã lịch hẹn: ${invoice['AppointmentID'] ?? 'N/A'}'),
-              Text('💸 Dịch vụ: ${invoice['ServicePrice'] ?? 0} đ'),
-              Text('💊 Thuốc: ${invoice['MedicineTotal'] ?? 0} đ'),
-              Text('💰 Tổng cộng: ${invoice['TotalAmount'] ?? 0} đ'),
+              Text('💸 Dịch vụ: ${formatCurrency(invoice['ServicePrice'])} đ'),
+              Text('💊 Thuốc: ${formatCurrency(invoice['MedicineTotal'])} đ'),
+              if (promotionNote != null && promotionNote.toString().isNotEmpty) ...[
+                Text('💰 Tổng cộng (sau giảm): ${formatCurrency(invoice['TotalAmount'])} đ'),
+                Text('🎁 Khuyến mãi: $promotionNote', style: const TextStyle(color: Colors.green)),
+              ] else ...[
+                Text('💰 Tổng cộng: ${formatCurrency(invoice['TotalAmount'])} đ'),
+              ],
               Text('🗓 Ngày tạo: $formattedDate'),
-              Text('📌 Trạng thái: $status'),
+              Text('📌 Trạng thái: ${getDisplayStatus(status)}'),
             ],
           ),
         ),

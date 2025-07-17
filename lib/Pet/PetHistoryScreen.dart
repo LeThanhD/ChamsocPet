@@ -32,7 +32,7 @@ class _PetHistoryScreenState extends State<PetHistoryScreen> {
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         setState(() {
-          message = data['message'] ?? '';
+          message = data['message'] != null ? json.decode('"${data['message']}"') : '';
           medications = data['medications'] ?? [];
           services = data['services'] ?? [];
           isLoading = false;

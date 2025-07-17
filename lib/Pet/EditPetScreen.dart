@@ -67,7 +67,9 @@ class _EditPetScreenState extends State<EditPetScreen> {
       'last_vaccine_date': lastVaccineController.text,
       'trained': trained ? 1 : 0,
       'HealthStatus': healthController.text,
+      'UserID': widget.pet['UserID'],
     };
+
 
     try {
       final response = await http.put(

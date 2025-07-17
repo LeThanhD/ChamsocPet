@@ -110,7 +110,7 @@ class _PageScreenState extends State<PageScreen> {
               icon: Stack(
                 children: [
                   const Icon(Icons.calendar_today),
-                  if (unseenCount > 0)
+                  if (role == 'staff' && unseenCount > 0)
                     Positioned(
                       right: 0,
                       child: Container(
@@ -139,7 +139,7 @@ class _PageScreenState extends State<PageScreen> {
               icon: Stack(
                 children: [
                   const Icon(Icons.calendar_today),
-                  if (unseenCount > 0)
+                  if (role == 'staff' && unseenCount > 0)
                     Positioned(
                       right: 0,
                       child: Container(

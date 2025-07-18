@@ -282,17 +282,26 @@ public function store(Request $request)
 // Lấy danh sách dịch vụ
 public function fetchServices(Request $request)
 {
-    // Lấy tất cả dịch vụ từ bảng 'Services'
-    $services = DB::table('services')->get();  // Lấy tất cả các dịch vụ từ bảng
+    // Lấy species từ query ?species=Chó hoặc Mèo
+    $species = $request->query('species');
+
+    // Tạo truy vấn dịch vụ
+    $query = DB::table('services');
+
+    // Nếu có species thì lọc theo loài
+    if ($species) {
+        $query->where('CategoryID', $species); // CategoryID là cột lưu loài thú cưng
+    }
+
+    $services = $query->get();
 
     if ($services->isEmpty()) {
         return response()->json(['message' => 'Không có dịch vụ nào'], 404);
     }
 
-    // Trả về dữ liệu đúng định dạng, bỏ phần phân trang nếu không cần thiết
     return response()->json([
         'success' => true,
-        'data' => $services,  // data là một list dịch vụ
+        'data' => $services,
     ], 200);
 }
 

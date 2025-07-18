@@ -267,9 +267,13 @@ public function store(Request $request)
     // Xem chi tiết hóa đơn
    public function show($id)
 {
-    $invoice = Invoices::with(['appointment.services', 'appointment.service', 'appointment.user', 'appointment.pet', 'medications'])
-        ->where('InvoiceID', $id)
-        ->first();
+    $invoice = Invoices::with([
+        'appointment.services',
+        'appointment.service',
+        'appointment.user',
+        'appointment.pet',
+        'medications'
+    ])->where('InvoiceID', $id)->first();
 
     if (!$invoice) {
         return response()->json(['message' => 'Not found'], 404);
@@ -281,6 +285,7 @@ public function store(Request $request)
         return response()->json(['error' => 'Không tìm thấy lịch hẹn'], 404);
     }
 
+    // Xử lý thuốc
     $medicines = $invoice->medications->map(function ($m) {
         return [
             'MedicationID' => $m->MedicationID,
@@ -290,8 +295,12 @@ public function store(Request $request)
         ];
     });
 
+    // Đổ dữ liệu invoice
     $data = $invoice->toArray();
     $data['medications'] = $medicines;
+
+    // 👇 Gộp tên thú cưng vào để Flutter dễ lấy
+    $data['pet'] = $appointment->pet ? $appointment->pet->toArray() : null;
 
     return response()->json($data);
 }

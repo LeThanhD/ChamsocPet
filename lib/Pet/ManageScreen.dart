@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -19,11 +20,18 @@ class _ManageScreen extends State<ManageScreen> {
   String searchText = '';
   bool isSearching = false;
   final TextEditingController searchController = TextEditingController();
+  Timer? autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     loadUserAndFetchPets();
+    autoRefreshTimer = Timer.periodic(Duration(seconds: 10), (_) async {
+      if (!isSearching && mounted) {
+        print('🔁 Auto-refresh thú cưng...');
+        await fetchPets();
+      }
+    });
   }
 
   Future<void> loadUserAndFetchPets() async {

@@ -539,7 +539,7 @@ public function store(Request $request)
     }
 
 
-    public function getPromotion($userID)
+   public function getPromotion($userID)
 {
     $user = Users::where('UserID', $userID)->first();
 
@@ -547,20 +547,27 @@ public function store(Request $request)
         return response()->json(['message' => 'User not found'], 404);
     }
 
-    // Tính tổng tiền đã thanh toán
+    // ✅ Cập nhật lại tổng số cuộc hẹn đã hoàn tất (tránh bị sai lệch)
+    $totalCompleted = \DB::table('appointments')
+        ->where('UserID', $userID)
+        ->where('Status', 'Kết thúc')
+        ->count();
+
+    $user->total_completed_appointments = $totalCompleted;
+
+    // ✅ Tính tổng tiền đã thanh toán
     $totalPaid = \DB::table('payments')
         ->where('UserID', $userID)
         ->sum('PaidAmount');
 
-    // Gắn giá trị vào user (nếu cần cập nhật vào DB)
+    // ✅ Gắn giá trị VIP nếu đủ điều kiện
     if ($totalPaid >= 1000000 && !$user->is_vip) {
         $user->is_vip = true;
-        $user->save();
     }
 
-    $isOldCustomer = $user->total_completed_appointments > 0;
+    $user->save();
 
-    // Gán ưu đãi
+    // ✅ Gán khuyến mãi
     $discount = 0;
     $promotionTitle = '';
     $promotionNote = '';
@@ -569,7 +576,7 @@ public function store(Request $request)
         $discount = 20;
         $promotionTitle = "🎉 Ưu đãi VIP 20%";
         $promotionNote = "Bạn là khách VIP! Được giảm giá 20% và ưu tiên lịch hẹn.";
-    } elseif ($isOldCustomer) {
+    } elseif ($user->total_completed_appointments > 0) {
         $discount = 10;
         $promotionTitle = "🔁 Ưu đãi khách cũ 10%";
         $promotionNote = "Cảm ơn bạn đã quay lại! Bạn được giảm 10% trên tổng đơn.";
@@ -579,12 +586,12 @@ public function store(Request $request)
         'UserID' => $user->UserID,
         'FullName' => $user->FullName,
         'is_vip' => $user->is_vip,
+        'total_completed_appointments' => $user->total_completed_appointments,
         'total_paid' => $totalPaid,
         'discount' => $discount,
         'promotion_title' => $promotionTitle,
         'promotion_note' => $promotionNote,
     ]);
 }
-
 
 }

@@ -154,7 +154,11 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                     (invoice!['CreatedAt'] ?? '').toString().split('T').first,
                     icon: Icons.date_range,
                   ),
-                  buildInfoTile('Tên thú cưng', invoice!['name'] ?? 'Không rõ', icon: Icons.pets),
+                buildInfoTile(
+                  'Tên thú cưng',
+                  invoice!['pet']?['Name'] ?? 'Không rõ',
+                  icon: Icons.pets,
+                ),
                   buildInfoTile('Mã lịch hẹn', invoice!['AppointmentID']),
                   buildInfoTile('Tổng tiền', '${formatCurrency(invoice!['TotalAmount'])} đ', icon: Icons.payments),
                   if ((invoice!['Note'] ?? '').toString().isNotEmpty)
